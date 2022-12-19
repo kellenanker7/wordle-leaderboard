@@ -9,6 +9,7 @@ class Config:
         self._twilio_auth_token: str = parameters.get_secret(
             os.environ.get("TWILIO_AUTH_TOKEN")
         )
+        self._auth_header = "x-twilio-signature"
 
     @property
     def ddb_table(self) -> str:
@@ -17,3 +18,7 @@ class Config:
     @property
     def twilio_auth_token(self) -> str:
         return self._twilio_auth_token
+
+    @property
+    def auth_header(self) -> str:
+        return self._auth_header

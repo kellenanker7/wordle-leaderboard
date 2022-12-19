@@ -5,10 +5,11 @@ configValidationMode: error
 provider:
   name: aws
   runtime: python3.9
-  stage: live
   region: us-east-1
+  stage: live
   httpApi:
     disableDefaultEndpoint: true
+    shouldStartNameWithService: true
     cors:
       allowedOrigins:
         - 'https://wordle.kellenanker.com'
@@ -17,12 +18,18 @@ provider:
       allowCredentials: false
       maxAge: 300
 
+  tags:
+    Serverless: true
+
+  stackTags:
+    Serverless: true
+
   iam:
     role:
       statements:
         - Effect: Allow
           Action: secretsmanager:GetSecretValue
-          Resource: !Ref TwilioAuthToken
+          Resource: !Ref TwilioAuthTokenSecret
         - Effect: Allow
           Action:
             - dynamodb:GetItem
@@ -31,6 +38,11 @@ provider:
             - dynamodb:Query
             - dynamodb:Scan
           Resource: !GetAtt ScoresTable.Arn
+
+  environment:
+    LOG_LEVEL: DEBUG
+    DDB_TABLE: !Ref ScoresTable
+    TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
 
 package:
   individually: true
@@ -41,10 +53,6 @@ package:
     - '!package.json'
     - '!poetry.lock'
     - '!pyproject.toml'
-
-environment:
-  DDB_TABLE: !Ref ScoresTable
-  TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
 
 functions:
   wordleLeaderboard:
@@ -59,7 +67,6 @@ functions:
       - httpApi:
           path: '/health'
           method: GET
-
     layers:
       - Ref: PythonRequirementsLambdaLayer
 

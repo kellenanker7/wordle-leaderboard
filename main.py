@@ -1,40 +1,36 @@
 import boto3
 
+from helpers.authorizer import authorize
 from helpers.config import Config
-
-from twilio.twiml.messaging_response import MessagingResponse
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
+from aws_lambda_powertools.event_handler.api_gateway import Response
 
 
 config = Config()
 logger = Logger()
-app = APIGatewayHttpResolver()
+app = APIGatewayHttpResolver(debug=True)
 
 table = boto3.resource("dynamodb").Table(config.ddb_table)
 
 
 @app.post("/post")
 @authorize(app)
-def post():
-    resp = MessagingResponse()
-    resp.message("The Robots are coming! Head for the hills!")
-
-    return str(resp)
+def post() -> str:
+    return Response(
+        status_code=200,
+        body="Hi Jill :)",
+        content_type="text/plain",
+    )
 
 
 @app.get("/health")
-def health() -> dict:
-    return {"health": "alive"}
+def health() -> str:
+    return {"status": "alive"}
 
 
-@app.exception_handler(Exception)
-def handle_invalid_payload(e: Exception):
-    raise
-
-
-def api_handler(event: dict, context: LambdaContext) -> dict:
+def api_handler(event: dict, context: LambdaContext) -> str:
     logger.debug(event)
-    app.resolve(event, context)
+    return app.resolve(event, context)

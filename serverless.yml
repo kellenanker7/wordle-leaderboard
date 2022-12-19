@@ -1,0 +1,124 @@
+service: wordle-leaderboard
+frameworkVersion: '3'
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: live
+  region: us-east-1
+  httpApi:
+    disableDefaultEndpoint: true
+    cors:
+      allowedOrigins:
+        - 'https://wordle.kellenanker.com'
+        - 'http://localhost:3000'
+      allowedHeaders: '*'
+      allowCredentials: false
+      maxAge: 300
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action: secretsmanager:GetSecretValue
+          Resource: !Ref TwilioAuthToken
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+            - dynamodb:Scan
+          Resource: !GetAtt ScoresTable.Arn
+
+package:
+  individually: true
+  patterns:
+    - 'helpers/**'
+    - '!node_modules/**'
+    - '!package-lock.json'
+    - '!package.json'
+    - '!poetry.lock'
+    - '!pyproject.toml'
+
+environment:
+  DDB_TABLE: !Ref ScoresTable
+  TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
+
+functions:
+  wordleLeaderboard:
+    name: wordle-leaderboard
+    handler: main.api_handler
+    memorySize: 256
+    timeout: 29
+    events:
+      - httpApi:
+          path: '/post'
+          method: POST
+      - httpApi:
+          path: '/health'
+          method: GET
+
+    layers:
+      - Ref: PythonRequirementsLambdaLayer
+
+custom:
+  domainName: kellenanker.com
+  fqdn: wordle.${self:custom.domainName}
+
+  customDomain:
+    domainName: ${self:custom.fqdn}
+    basePath: ''
+    stage: live
+    createRoute53Record: true
+    certificateName: ${self:custom.fqdn}
+    autoDomain: true
+    autoDomainWaitFor: 300
+    endpointType: regional
+    securityPolicy: tls_1_2
+    apiType: http
+
+  customCertificate:
+    certificateName: ${self:custom.fqdn}
+    hostedZoneNames: ${self:custom.domainName}.
+
+  logRetentionInDays: 7
+
+  pythonRequirements:
+    layer: true
+
+plugins:
+  - serverless-python-requirements
+  - serverless-domain-manager
+  - serverless-certificate-creator
+  - serverless-plugin-log-retention
+  - serverless-plugin-resource-tagging
+  - serverless-plugin-git-variables
+
+resources:
+  Resources:
+    ScoresTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: wordle-leaderboard
+        AttributeDefinitions:
+          - AttributeName: Id
+            AttributeType: N
+          - AttributeName: CreateTime
+            AttributeType: N
+        KeySchema:
+          - AttributeName: Id
+            KeyType: HASH
+          - AttributeName: CreateTime
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: TTL
+          Enabled: True
+
+    TwilioAuthTokenSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Description: Twilio Auth Token
+        Name: twilio-auth-token

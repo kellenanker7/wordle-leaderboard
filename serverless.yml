@@ -13,6 +13,7 @@ provider:
     cors:
       allowedOrigins:
         - 'https://wordle.kellenanker.com'
+        - 'http://wordle.kellenanker.com.s3-website-us-east-1.amazonaws.com'
         - 'http://localhost:3000'
       allowedHeaders: '*'
       allowCredentials: false

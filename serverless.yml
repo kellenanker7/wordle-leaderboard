@@ -70,12 +70,15 @@ functions:
       - httpApi:
           path: '/health'
           method: GET
+      - httpApi:
+          path: '/topten'
+          method: GET
     layers:
       - Ref: PythonRequirementsLambdaLayer
 
 custom:
   domainName: kellenanker.com
-  fqdn: wordle.${self:custom.domainName}
+  fqdn: api.wordle.${self:custom.domainName}
 
   customDomain:
     domainName: ${self:custom.fqdn}
@@ -113,14 +116,14 @@ resources:
       Properties:
         TableName: wordle-leaderboard
         AttributeDefinitions:
-          - AttributeName: Id
+          - AttributeName: PhoneNumber
             AttributeType: N
-          - AttributeName: CreateTime
-            AttributeType: N
+          - AttributeName: PuzzleDate
+            AttributeType: S
         KeySchema:
-          - AttributeName: Id
+          - AttributeName: PhoneNumber
             KeyType: HASH
-          - AttributeName: CreateTime
+          - AttributeName: PuzzleDate
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
         TimeToLiveSpecification:

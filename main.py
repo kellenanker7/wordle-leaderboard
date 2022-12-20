@@ -42,7 +42,7 @@ def build_response(msg: str) -> Response:
 
 @app.post("/post")
 @authorize(app)
-def post() -> str:
+def post_score() -> str:
     body: dict = dict(parse_qsl(app.current_event.decoded_body))["Body"]
 
     try:
@@ -72,8 +72,22 @@ def post() -> str:
         return build_response(msg="Invalid Wordle payload")
 
 
+@app.get("/topten")
+def get_top_ten() -> list:
+    return [
+        {
+            "number": "(609)847-9282",
+            "avg": "3",
+        },
+        {
+            "number": "(505)363-2959",
+            "avg": "3",
+        },
+    ]
+
+
 @app.get("/health")
-def health() -> str:
+def get_health() -> str:
     return {"status": "alive"}
 
 

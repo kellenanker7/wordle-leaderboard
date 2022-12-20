@@ -9,7 +9,9 @@ class Config:
         self._twilio_auth_token: str = parameters.get_secret(
             os.environ.get("TWILIO_AUTH_TOKEN")
         )
-        self._auth_header = "x-twilio-signature"
+        self._webhook_token: str = parameters.get_secret(
+            os.environ.get("WEBHOOK_TOKEN")
+        )
 
     @property
     def ddb_table(self) -> str:
@@ -20,5 +22,5 @@ class Config:
         return self._twilio_auth_token
 
     @property
-    def auth_header(self) -> str:
-        return self._auth_header
+    def webhook_token(self) -> str:
+        return self._webhook_token

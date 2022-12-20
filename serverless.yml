@@ -29,7 +29,9 @@ provider:
       statements:
         - Effect: Allow
           Action: secretsmanager:GetSecretValue
-          Resource: !Ref TwilioAuthTokenSecret
+          Resource:
+            - Ref: TwilioAuthTokenSecret
+            - Ref: WebhookTokenSecret
         - Effect: Allow
           Action:
             - dynamodb:GetItem
@@ -43,6 +45,7 @@ provider:
     LOG_LEVEL: DEBUG
     DDB_TABLE: !Ref ScoresTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
+    WEBHOOK_TOKEN: !Ref WebhookTokenSecret
 
 package:
   individually: true
@@ -128,4 +131,9 @@ resources:
       Type: AWS::SecretsManager::Secret
       Properties:
         Description: Twilio Auth Token
-        Name: twilio-auth-token
+        Name: twilio/auth-token
+    WebhookTokenSecret:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Description: Twilio Webhook Token
+        Name: twilio/webhook-token

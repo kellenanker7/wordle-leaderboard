@@ -11,7 +11,7 @@ from aws_lambda_powertools.event_handler.api_gateway import Response
 
 config = Config()
 logger = Logger()
-app = APIGatewayHttpResolver(debug=True)
+app = APIGatewayHttpResolver()
 
 table = boto3.resource("dynamodb").Table(config.ddb_table)
 

@@ -10,7 +10,6 @@ from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
 from aws_lambda_powertools.event_handler.api_gateway import Response
-from aws_lambda_powertools.event_handler.exceptions import BadRequestError
 
 
 config = Config()
@@ -37,11 +36,12 @@ black = "⬛"
 @authorize(app)
 def post() -> str:
     body: dict = dict(parse_qsl(app.current_event.decoded_body))["Body"]
-    guesses: list = list(filter(None, body.split("\n")))
-    guesses.pop(0)  # get rid of header line
 
     try:
-        assert len(guesses) > 0 and len(guesses) <= 6
+        guesses: list = list(filter(None, body.split("\n")))
+        guesses.pop(0)  # get rid of header line
+
+        assert len(guesses) >= 1 and len(guesses) <= 6
         last_guess: str = guesses[-1]
 
         correct: list = len([m.start() for m in re.finditer(green, last_guess)])
@@ -51,7 +51,10 @@ def post() -> str:
         logger.debug(f"Correct: {correct}")
         logger.debug(f"Parial: {parial}")
         logger.debug(f"Incorrect: {incorrect}")
+
         assert correct + parial + incorrect == 5
+        if len(guesses) < 6:
+            assert correct == 5
 
         return Response(
             status_code=200,
@@ -59,8 +62,7 @@ def post() -> str:
             content_type="text/plain",
         )
 
-    except Exception as e:
-        logger.error(e)
+    except:
         return Response(
             status_code=200,
             body="Invalid Wordle payload",

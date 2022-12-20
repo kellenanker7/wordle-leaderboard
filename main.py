@@ -32,6 +32,14 @@ yellow = "🟨"
 black = "⬛"
 
 
+def build_response(msg: str) -> Response:
+    return Response(
+        status_code=200,
+        body=msg,
+        content_type="text/plain",
+    )
+
+
 @app.post("/post")
 @authorize(app)
 def post() -> str:
@@ -40,34 +48,28 @@ def post() -> str:
     try:
         guesses: list = list(filter(None, body.split("\n")))
         guesses.pop(0)  # get rid of header line
+        correct: int = 0
 
+        # Must have guessed between 1 and 6 times.
         assert len(guesses) >= 1 and len(guesses) <= 6
-        last_guess: str = guesses[-1]
 
-        correct: list = len([m.start() for m in re.finditer(green, last_guess)])
-        parial: list = len([m.start() for m in re.finditer(yellow, last_guess)])
-        incorrect: list = len([m.start() for m in re.finditer(black, last_guess)])
+        for guess in guesses:
+            correct = len([m.start() for m in re.finditer(green, guess)])
+            parial: int = len([m.start() for m in re.finditer(yellow, guess)])
+            incorrect: int = len([m.start() for m in re.finditer(black, guess)])
 
-        logger.debug(f"Correct: {correct}")
-        logger.debug(f"Parial: {parial}")
-        logger.debug(f"Incorrect: {incorrect}")
+            # Each guess must be 5 letters
+            assert correct + parial + incorrect == 5
 
-        assert correct + parial + incorrect == 5
-        if len(guesses) < 6:
-            assert correct == 5
+        # Final guess must be all correct if fewer than 6 guesses.
+        assert correct == 5 or len(guesses) == 6
 
-        return Response(
-            status_code=200,
-            body=responses[len(guesses)] if correct == 5 else "Better luck tomorrow!",
-            content_type="text/plain",
+        return build_response(
+            msg=responses[len(guesses)] if correct == 5 else "Better luck tomorrow!"
         )
 
     except:
-        return Response(
-            status_code=200,
-            body="Invalid Wordle payload",
-            content_type="text/plain",
-        )
+        return build_response(msg="Invalid Wordle payload")
 
 
 @app.get("/health")

@@ -93,8 +93,8 @@ def post_score() -> str:
         return sms_response(msg="Oh no! Something went wrong! Please try again.")
 
 
-@app.get("/topten")
-def get_top_ten() -> list:
+@app.get("/leaderboard")
+def leaderboard() -> dict:
     logger.debug(app.current_event.query_string_parameters)
     days = int(app.current_event.get_query_string_value("days", default_value=7))
 
@@ -109,14 +109,22 @@ def get_top_ten() -> list:
         },
         ExpressionAttributeNames={"#CreateTime": "CreateTime"},
         ReturnConsumedCapacity="NONE",
-        ProjectionExpression="PhoneNumber,Guesses,Victory",
+        ProjectionExpression="PhoneNumber,Guesses",
     )["Items"]
 
-    guesses_by_number: dict = defaultdict(list)
+    guesses_by_user: dict = defaultdict(list)
+    for i in items:
+        guesses_by_user[int(i["PhoneNumber"])].append(int(i["Guesses"]))
+
+    leaderboard: list = []
+    for k, v in guesses_by_user.items():
+        leaderboard.append({"PhoneNumber": k, "Average": round(sum(v) / len(v), 3)})
+
+    return sorted(leaderboard, key=lambda x: x["Average"])
 
 
 @app.get("/user/<user>")
-def get_top_ten(user: str) -> list:
+def user(user: str) -> list:
     items: list = table.scan(
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={
@@ -124,7 +132,7 @@ def get_top_ten(user: str) -> list:
         },
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
         ReturnConsumedCapacity="NONE",
-        ProjectionExpression="PhoneNumber,PuzzleNumber,Guesses,Victory",
+        ProjectionExpression="PuzzleNumber,Guesses,Victory",
     )["Items"]
 
     return sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True)

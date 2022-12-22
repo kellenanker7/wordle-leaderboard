@@ -72,7 +72,7 @@ functions:
           path: '/health'
           method: GET
       - httpApi:
-          path: '/topten'
+          path: '/leaderboard'
           method: GET
       - httpApi:
           path: '/user/{user}'

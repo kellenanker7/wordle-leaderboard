@@ -74,6 +74,9 @@ functions:
       - httpApi:
           path: '/topten'
           method: GET
+      - httpApi:
+          path: '/user/{user}'
+          method: GET
     layers:
       - Ref: PythonRequirementsLambdaLayer
 

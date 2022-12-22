@@ -1,10 +1,13 @@
 import boto3
 import re
+import time
 
-from urllib.parse import parse_qsl
+from collections import defaultdict
 
 from helpers.authorizer import authorize
 from helpers.config import Config
+
+from urllib.parse import parse_qsl
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -47,7 +50,7 @@ def post_score() -> str:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
         logger.debug(decoded_body)
 
-        from_number: int = int(decoded_body["From"][1:])
+        from_number: int = int(decoded_body["From"][2:])
         guesses: list = list(filter(None, decoded_body["Body"].split("\n")))
         puzzle_number: int = int(guesses.pop(0).split(" ")[1])
 
@@ -78,6 +81,7 @@ def post_score() -> str:
                 "PuzzleNumber": puzzle_number,
                 "Guesses": len(guesses),
                 "Victory": victory,
+                "CreateTime": int(time.time() * 10**6),
             },
         )
         return sms_response(
@@ -92,28 +96,38 @@ def post_score() -> str:
 @app.get("/topten")
 def get_top_ten() -> list:
     logger.debug(app.current_event.query_string_parameters)
-    timeframe = int(
-        app.current_event.get_query_string_value("timeframe", default_value=7)
-    )
+    days = int(app.current_event.get_query_string_value("days", default_value=7))
 
-    # items = table.scan(
-    #     ReturnConsumedCapacity="NONE",
-    #     ProjectionExpression=f"PhoneNumber,PuzzleNumber,Guesses,Victory",
-    #     FilterExpression=f"#{attr} = :{attr}",
-    #     ExpressionAttributeValues={f":{attr}": val},
-    #     ExpressionAttributeNames={f"#{attr}": attr},
-    # )["Items"]
+    now = int(time.time() * 10**6)
+    then = now - (days * 24 * 60 * 60 * 10**6)
 
-    return [
-        {
-            "number": "(609)847-9282",
-            "avg": "3",
+    items: list = table.scan(
+        FilterExpression="#CreateTime BETWEEN :then AND :now",
+        ExpressionAttributeValues={
+            ":then": then,
+            ":now": now,
         },
-        {
-            "number": "(505)363-2959",
-            "avg": "3",
+        ExpressionAttributeNames={"#CreateTime": "CreateTime"},
+        ReturnConsumedCapacity="NONE",
+        ProjectionExpression="PhoneNumber,Guesses,Victory",
+    )["Items"]
+
+    guesses_by_number: dict = defaultdict(list)
+
+
+@app.get("/user/<user>")
+def get_top_ten(user: str) -> list:
+    items: list = table.scan(
+        FilterExpression="#PhoneNumber = :who",
+        ExpressionAttributeValues={
+            ":who": int(user),
         },
-    ]
+        ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
+        ReturnConsumedCapacity="NONE",
+        ProjectionExpression="PhoneNumber,PuzzleNumber,Guesses,Victory",
+    )["Items"]
+
+    return sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True)
 
 
 @app.get("/health")

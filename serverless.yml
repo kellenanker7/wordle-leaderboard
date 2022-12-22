@@ -119,17 +119,14 @@ resources:
         AttributeDefinitions:
           - AttributeName: PhoneNumber
             AttributeType: N
-          - AttributeName: PuzzleDate
-            AttributeType: S
+          - AttributeName: PuzzleNumber
+            AttributeType: N
         KeySchema:
           - AttributeName: PhoneNumber
             KeyType: HASH
-          - AttributeName: PuzzleDate
+          - AttributeName: PuzzleNumber
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
-        TimeToLiveSpecification:
-          AttributeName: TTL
-          Enabled: True
 
     TwilioAuthTokenSecret:
       Type: AWS::SecretsManager::Secret

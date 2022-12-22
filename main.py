@@ -32,7 +32,7 @@ yellow = "🟨"
 black = "⬛"
 
 
-def build_response(msg: str) -> Response:
+def sms_response(msg: str) -> Response:
     return Response(
         status_code=200,
         body=msg,
@@ -43,37 +43,67 @@ def build_response(msg: str) -> Response:
 @app.post("/post")
 @authorize(app)
 def post_score() -> str:
-    body: dict = dict(parse_qsl(app.current_event.decoded_body))["Body"]
-
     try:
-        guesses: list = list(filter(None, body.split("\n")))
-        guesses.pop(0)  # get rid of header line
-        correct: int = 0
+        decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
+        logger.debug(decoded_body)
+
+        from_number: int = int(decoded_body["From"][1:])
+        guesses: list = list(filter(None, decoded_body["Body"].split("\n")))
+        puzzle_number: int = int(guesses.pop(0).split(" ")[1])
 
         # Must have guessed between 1 and 6 times.
         assert len(guesses) >= 1 and len(guesses) <= 6
 
+        # Each guess must be 5 letters
         for guess in guesses:
-            correct = len([m.start() for m in re.finditer(green, guess)])
-            parial: int = len([m.start() for m in re.finditer(yellow, guess)])
-            incorrect: int = len([m.start() for m in re.finditer(black, guess)])
-
-            # Each guess must be 5 letters
-            assert correct + parial + incorrect == 5
+            correct: int = len([m.start() for m in re.finditer(green, guess)])
+            assert (
+                correct
+                + len([m.start() for m in re.finditer(yellow, guess)])
+                + len([m.start() for m in re.finditer(black, guess)])
+                == 5
+            )
 
         # Final guess must be all correct if fewer than 6 guesses.
         assert correct == 5 or len(guesses) == 6
-
-        return build_response(
-            msg=responses[len(guesses)] if correct == 5 else "Better luck tomorrow!"
-        )
+        victory: int = correct == 5
 
     except:
-        return build_response(msg="Invalid Wordle payload")
+        return sms_response(msg="Invalid Wordle payload")
+
+    try:
+        table.put_item(
+            Item={
+                "PhoneNumber": from_number,
+                "PuzzleNumber": puzzle_number,
+                "Guesses": len(guesses),
+                "Victory": victory,
+            },
+        )
+        return sms_response(
+            msg=responses[len(guesses)] if victory else "Better luck tomorrow!"
+        )
+
+    except Exception as e:
+        logger.error(f"Error putting item: {e}")
+        return sms_response(msg="Oh no! Something went wrong! Please try again.")
 
 
 @app.get("/topten")
 def get_top_ten() -> list:
+    logger.debug(app.current_event.query_string_parameters)
+    timeframe = int(
+        app.current_event.get_query_string_value("timeframe", default_value=7)
+    )
+
+    # items = table.scan(
+    #     ReturnConsumedCapacity="NONE",
+    #     ProjectionExpression=f"PhoneNumber,PuzzleNumber,Guesses,Victory",
+    #     FilterExpression=f"#{attr} = :{attr}",
+    #     ExpressionAttributeValues={f":{attr}": val},
+    #     ExpressionAttributeNames={f"#{attr}": attr},
+    # )["Items"]
+
     return [
         {
             "number": "(609)847-9282",

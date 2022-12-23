@@ -84,9 +84,20 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> dict:
+    logger.debug(app.current_event.query_string_parameters)
+
+    limit = int(app.current_event.get_query_string_value("limit", default_value=7))
+    now: int = int(time.time() * 10**6)
+    then: int = 0 if limit == 0 else now - (limit * 24 * 60 * 60 * 10**6)
+
     items: list = table.scan(
-        ReturnConsumedCapacity="NONE",
         ProjectionExpression="PhoneNumber,Guesses,Victory",
+        FilterExpression="#CreateTime BETWEEN :then AND :now",
+        ExpressionAttributeNames={"#CreateTime": "CreateTime"},
+        ExpressionAttributeValues={
+            ":then": then,
+            ":now": now,
+        },
     )["Items"]
 
     guesses_by_user: dict = defaultdict(list)
@@ -118,7 +129,6 @@ def user(user: str) -> list:
             ":who": int(user),
         },
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
-        ReturnConsumedCapacity="NONE",
         ProjectionExpression="PuzzleNumber,Guesses,Victory",
     )["Items"]
 

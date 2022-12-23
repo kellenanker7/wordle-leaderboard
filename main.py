@@ -46,14 +46,14 @@ def post_score() -> str:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
         logger.debug(decoded_body)
 
-        from_number: int = int(decoded_body["From"][2:])
+        who: int = int(decoded_body["From"][2:])
         first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
-        chunks: list = first_line.split(" ")
 
+        chunks: list = first_line.split(" ")
         puzzle_number: int = int(chunks[1])
 
         try:
-            guesses: str = int(chunks[2])
+            guesses: str = int(chunks[2].split("/")[0])
             victory: int = True
         except ValueError:
             guesses: int = 6
@@ -65,9 +65,9 @@ def post_score() -> str:
     try:
         table.put_item(
             Item={
-                "PhoneNumber": from_number,
+                "PhoneNumber": who,
                 "PuzzleNumber": puzzle_number,
-                "Guesses": 6 if victory else guesses,
+                "Guesses": guesses,
                 "Victory": victory,
                 "CreateTime": int(time.time() * 10**6),
             },

@@ -23,16 +23,12 @@ table = boto3.resource("dynamodb").Table(config.ddb_table)
 
 responses: dict = {
     1: "Hole in one!",
-    2: "Birdie!",
-    3: "Par.",
-    4: "Bogey.",
-    5: "Double bogey.",
-    6: "Triple bogey.",
+    2: "Albatross!",
+    3: "Birdie!",
+    4: "Par",
+    5: "Bogey",
+    6: "Double bogey",
 }
-
-green = "🟩"
-yellow = "🟨"
-black = "⬛"
 
 
 def sms_response(msg: str) -> Response:
@@ -51,25 +47,17 @@ def post_score() -> str:
         logger.debug(decoded_body)
 
         from_number: int = int(decoded_body["From"][2:])
-        guesses: list = list(filter(None, decoded_body["Body"].split("\n")))
-        puzzle_number: int = int(guesses.pop(0).split(" ")[1])
+        first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
+        chunks: list = first_line.split(" ")
 
-        # Must have guessed between 1 and 6 times.
-        assert len(guesses) >= 1 and len(guesses) <= 6
+        puzzle_number: int = int(chunks[1])
 
-        # Each guess must be 5 letters
-        for guess in guesses:
-            correct: int = len([m.start() for m in re.finditer(green, guess)])
-            assert (
-                correct
-                + len([m.start() for m in re.finditer(yellow, guess)])
-                + len([m.start() for m in re.finditer(black, guess)])
-                == 5
-            )
-
-        # Final guess must be all correct if fewer than 6 guesses.
-        assert correct == 5 or len(guesses) == 6
-        victory: int = correct == 5
+        try:
+            guesses: str = int(chunks[2])
+            victory: int = True
+        except ValueError:
+            guesses: int = 6
+            victory: int = False
 
     except:
         return sms_response(msg="Invalid Wordle payload")
@@ -79,13 +67,13 @@ def post_score() -> str:
             Item={
                 "PhoneNumber": from_number,
                 "PuzzleNumber": puzzle_number,
-                "Guesses": len(guesses),
+                "Guesses": 6 if victory else guesses,
                 "Victory": victory,
                 "CreateTime": int(time.time() * 10**6),
             },
         )
         return sms_response(
-            msg=responses[len(guesses)] if victory else "Better luck tomorrow!"
+            msg=responses[guesses] if victory else "Better luck tomorrow!"
         )
 
     except Exception as e:

@@ -3,6 +3,8 @@ import re
 import time
 
 from collections import defaultdict
+from itertools import groupby
+from operator import itemgetter
 
 from helpers.authorizer import authorize
 from helpers.config import Config
@@ -83,7 +85,7 @@ def post_score() -> str:
 
 
 @app.get("/leaderboard")
-def leaderboard() -> dict:
+def leaderboard() -> list:
     logger.debug(app.current_event.query_string_parameters)
 
     limit = int(app.current_event.get_query_string_value("limit", default_value=7))
@@ -122,7 +124,7 @@ def leaderboard() -> dict:
 
 
 @app.get("/user/<user>")
-def user(user: str) -> list:
+def user(user: str) -> dict:
     items: list = table.scan(
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={
@@ -132,7 +134,18 @@ def user(user: str) -> list:
         ProjectionExpression="PuzzleNumber,Guesses,Victory",
     )["Items"]
 
-    return sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True)
+    streaks: list = []
+    for k, g in groupby(
+        enumerate([i["PuzzleNumber"] for i in items if i["Victory"]]),
+        lambda ix: ix[0] - ix[1],
+    ):
+        streaks.append(list(map(itemgetter(1), g)))
+
+    return {
+        "Puzzles": sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True),
+        "LongestStreak": sorted([len(i) for i in streaks])[-1],
+        "CurrentStreak": len(streaks[-1]),
+    }
 
 
 @app.get("/health")

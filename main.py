@@ -93,7 +93,7 @@ def leaderboard() -> list:
     then: int = 0 if limit == 0 else now - (limit * 24 * 60 * 60 * 10**6)
 
     items: list = table.scan(
-        ProjectionExpression="PhoneNumber,Guesses,Victory",
+        ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
         FilterExpression="#CreateTime BETWEEN :then AND :now",
         ExpressionAttributeNames={"#CreateTime": "CreateTime"},
         ExpressionAttributeValues={
@@ -103,20 +103,33 @@ def leaderboard() -> list:
     )["Items"]
 
     guesses_by_user: dict = defaultdict(list)
-    wins_by_user: dict = defaultdict(int)
+    wins_by_user: dict = defaultdict(list)
 
     for i in items:
-        guesses_by_user[int(i["PhoneNumber"])].append(int(i["Guesses"]))
-        if i["Victory"]:
-            wins_by_user[int(i["PhoneNumber"])] += 1
+        user: int = int(i["PhoneNumber"])
+        guesses_by_user[user].append(int(i["Guesses"]))
 
+        if i["Victory"]:
+            wins_by_user[user].append(int(i["PuzzleNumber"]))
+
+    # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
+    streaks_by_user: dict = defaultdict(list)
+    for k, v in wins_by_user.items():
+        for _, g in groupby(
+            enumerate(v),
+            lambda ix: ix[0] - ix[1],
+        ):
+            streaks_by_user[k].append(list(map(itemgetter(1), g)))
+
+    logger.debug(streaks_by_user)
     leaderboard: list = []
     for k, v in guesses_by_user.items():
         leaderboard.append(
             {
                 "PhoneNumber": k,
                 "Average": round(sum(v) / len(v), 2),
-                "WinPercentage": round((wins_by_user[k] / len(v)) * 100, 2),
+                "WinPercentage": round(len(wins_by_user[k]) / len(v) * 100, 2),
+                "CurrentStreak": len(streaks_by_user[k][-1]),
             }
         )
 
@@ -134,8 +147,9 @@ def user(user: str) -> dict:
         ProjectionExpression="PuzzleNumber,Guesses,Victory",
     )["Items"]
 
+    # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
     streaks: list = []
-    for k, g in groupby(
+    for _, g in groupby(
         enumerate([i["PuzzleNumber"] for i in items if i["Victory"]]),
         lambda ix: ix[0] - ix[1],
     ):

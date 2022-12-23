@@ -84,30 +84,28 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> dict:
-    logger.debug(app.current_event.query_string_parameters)
-    days = int(app.current_event.get_query_string_value("days", default_value=7))
-
-    now = int(time.time() * 10**6)
-    then = now - (days * 24 * 60 * 60 * 10**6)
-
     items: list = table.scan(
-        FilterExpression="#CreateTime BETWEEN :then AND :now",
-        ExpressionAttributeValues={
-            ":then": then,
-            ":now": now,
-        },
-        ExpressionAttributeNames={"#CreateTime": "CreateTime"},
         ReturnConsumedCapacity="NONE",
-        ProjectionExpression="PhoneNumber,Guesses",
+        ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
     guesses_by_user: dict = defaultdict(list)
+    wins_by_user: dict = defaultdict(int)
+
     for i in items:
         guesses_by_user[int(i["PhoneNumber"])].append(int(i["Guesses"]))
+        if i["Victory"]:
+            wins_by_user[int(i["PhoneNumber"])] += 1
 
     leaderboard: list = []
     for k, v in guesses_by_user.items():
-        leaderboard.append({"PhoneNumber": k, "Average": round(sum(v) / len(v), 3)})
+        leaderboard.append(
+            {
+                "PhoneNumber": k,
+                "Average": round(sum(v) / len(v), 2),
+                "WinPercentage": round((wins_by_user[k] / len(v)) * 100, 2),
+            }
+        )
 
     return sorted(leaderboard, key=lambda x: x["Average"])
 

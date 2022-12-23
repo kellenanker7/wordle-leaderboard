@@ -73,7 +73,8 @@ def post_score() -> str:
             },
         )
         return sms_response(
-            msg=responses[guesses] if victory else "Better luck tomorrow!"
+            msg=(responses[guesses] if victory else "Better luck tomorrow!")
+            + "\n\nwordle.kellenanker.com"
         )
 
     except Exception as e:

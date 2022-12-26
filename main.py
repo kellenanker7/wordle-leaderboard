@@ -80,7 +80,7 @@ def post_score() -> str:
                 "PuzzleNumber": puzzle_number,
                 "Guesses": guesses,
                 "Victory": victory,
-                "CreateTime": int(time.time() * 10**6),
+                "CreateTime": int(time.time()),
             },
         )
         return sms_response(

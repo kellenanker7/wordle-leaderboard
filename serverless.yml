@@ -44,7 +44,7 @@ provider:
 
   environment:
     LOG_LEVEL: DEBUG
-    DDB_TABLE: !Ref ScoresTable
+    SCORES_TABLE: !Ref ScoresTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     WEBHOOK_TOKEN: !Ref WebhookTokenSecret
 

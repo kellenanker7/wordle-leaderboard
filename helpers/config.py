@@ -5,7 +5,7 @@ from aws_lambda_powertools.utilities import parameters
 
 class Config:
     def __init__(self):
-        self._ddb_table: str = os.environ.get("DDB_TABLE")
+        self._scores_table: str = os.environ.get("SCORES_TABLE")
         self._twilio_auth_token: str = parameters.get_secret(
             os.environ.get("TWILIO_AUTH_TOKEN")
         )
@@ -13,9 +13,15 @@ class Config:
             os.environ.get("WEBHOOK_TOKEN")
         )
 
+        # Puzzle 550 was 19347 days since epoch
+        self._reference: dict = {
+            "puzzle_number": 550,
+            "days_since_epoch": 19347,
+        }
+
     @property
-    def ddb_table(self) -> str:
-        return self._ddb_table
+    def scores_table(self) -> str:
+        return self._scores_table
 
     @property
     def twilio_auth_token(self) -> str:
@@ -24,3 +30,7 @@ class Config:
     @property
     def webhook_token(self) -> str:
         return self._webhook_token
+
+    @property
+    def reference(self) -> str:
+        return self._reference

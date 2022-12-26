@@ -75,6 +75,9 @@ functions:
           path: '/leaderboard'
           method: GET
       - httpApi:
+          path: '/today'
+          method: GET
+      - httpApi:
           path: '/user/{user}'
           method: GET
     layers:

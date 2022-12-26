@@ -167,6 +167,32 @@ def user(user: str) -> dict:
     }
 
 
+@app.get("/today")
+def today() -> dict:
+    todays_puzzle: int = get_todays_puzzle_number()
+
+    items: list = scores.scan(
+        FilterExpression="#PuzzleNumber = :today",
+        ExpressionAttributeValues={
+            ":today": todays_puzzle,
+        },
+        ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
+        ProjectionExpression="PhoneNumber,Guesses,Victory",
+    )["Items"]
+
+    return {
+        "PuzzleNumber": todays_puzzle,
+        "Users": [
+            {
+                "PhoneNumber": i["PhoneNumber"],
+                "Guesses": int(i["Guesses"]),
+                "Victory": i["Victory"],
+            }
+            for i in items
+        ],
+    }
+
+
 @app.get("/health")
 def get_health() -> str:
     return {"status": "alive"}

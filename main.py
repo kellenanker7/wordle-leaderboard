@@ -182,14 +182,17 @@ def today() -> dict:
 
     return {
         "PuzzleNumber": todays_puzzle,
-        "Users": [
-            {
-                "PhoneNumber": i["PhoneNumber"],
-                "Guesses": int(i["Guesses"]),
-                "Victory": i["Victory"],
-            }
-            for i in items
-        ],
+        "Users": sorted(
+            [
+                {
+                    "PhoneNumber": i["PhoneNumber"],
+                    "Guesses": int(i["Guesses"]),
+                    "Victory": i["Victory"],
+                }
+                for i in items
+            ],
+            key=lambda x: x["Guesses"],
+        ),
     }
 
 

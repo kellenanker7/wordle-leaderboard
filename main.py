@@ -141,6 +141,20 @@ def leaderboard() -> list:
     return sorted(leaderboard, key=lambda x: x["Average"])
 
 
+@app.get("/users")
+def users() -> list:
+    return list(
+        set(
+            sorted(
+                [
+                    i["PhoneNumber"]
+                    for i in scores.scan(ProjectionExpression="PhoneNumber")["Items"]
+                ]
+            )
+        )
+    )
+
+
 @app.get("/user/<user>")
 def user(user: str) -> dict:
     items: list = scores.scan(
@@ -182,6 +196,47 @@ def today() -> dict:
 
     return {
         "PuzzleNumber": todays_puzzle,
+        "Users": sorted(
+            [
+                {
+                    "PhoneNumber": i["PhoneNumber"],
+                    "Guesses": int(i["Guesses"]),
+                    "Victory": i["Victory"],
+                }
+                for i in items
+            ],
+            key=lambda x: x["Guesses"],
+        ),
+    }
+
+
+@app.get("/puzzles")
+def puzzles() -> list:
+    return list(
+        set(
+            sorted(
+                [
+                    i["PuzzleNumber"]
+                    for i in scores.scan(ProjectionExpression="PuzzleNumber")["Items"]
+                ]
+            )
+        )
+    )
+
+
+@app.get("/puzzle/<puzzle>")
+def puzzle(puzzle: str) -> dict:
+    items: list = scores.scan(
+        FilterExpression="#PuzzleNumber = :puzzle",
+        ExpressionAttributeValues={
+            ":puzzle": int(puzzle),
+        },
+        ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
+        ProjectionExpression="PhoneNumber,Guesses,Victory",
+    )["Items"]
+
+    return {
+        "PuzzleNumber": puzzle,
         "Users": sorted(
             [
                 {

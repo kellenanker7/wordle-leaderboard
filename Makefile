@@ -1,0 +1,3 @@
+deploy:
+	black .
+	serverless deploy

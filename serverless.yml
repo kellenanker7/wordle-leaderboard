@@ -47,6 +47,7 @@ provider:
     SCORES_TABLE: !Ref ScoresTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     WEBHOOK_TOKEN: !Ref WebhookTokenSecret
+    TZ_API: https://worldtimeapi.org/api/ip/
 
 package:
   individually: true
@@ -65,6 +66,12 @@ functions:
     memorySize: 256
     timeout: 29
     events:
+      - schedule:
+          name: wordle-leaderboard-warmer
+          description: Keep wordle-leaderboard warm
+          rate: rate(5 minutes)
+          input:
+            warmer: "yes"
       - httpApi:
           path: '/post'
           method: POST

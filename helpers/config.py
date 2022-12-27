@@ -19,6 +19,8 @@ class Config:
             "days_since_epoch": 19347,
         }
 
+        self._tz_api = os.environ.get("TZ_API")
+
     @property
     def scores_table(self) -> str:
         return self._scores_table
@@ -34,3 +36,7 @@ class Config:
     @property
     def reference(self) -> str:
         return self._reference
+
+    @property
+    def tz_api(self) -> str:
+        return self._tz_api

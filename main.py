@@ -54,7 +54,7 @@ def get_todays_puzzle_number(ip: str) -> int:
 
 
 def get_user_utc_offset(ip: str) -> int:
-    response: requests.Response = requests.get(f"https://worldtimeapi.org/api/ip/{ip}")
+    response: requests.Response = requests.get(f"{config.tz_api}{ip}")
     response.raise_for_status()
 
     raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
@@ -124,43 +124,16 @@ def leaderboard() -> list:
     )
 
     items: list = scores.scan(
-        ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
+        ProjectionExpression="PhoneNumber",
         FilterExpression="#PuzzleNumber >= :then",
         ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
         ExpressionAttributeValues={":then": then},
     )["Items"]
 
-    guesses_by_user: dict = defaultdict(list)
-    wins_by_user: dict = defaultdict(list)
-
-    for i in items:
-        user: int = int(i["PhoneNumber"])
-        guesses_by_user[user].append(int(i["Guesses"]))
-
-        if i["Victory"]:
-            wins_by_user[user].append(int(i["PuzzleNumber"]))
-
-    # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
-    streaks_by_user: dict = defaultdict(list)
-    for k, v in wins_by_user.items():
-        for _, g in groupby(
-            enumerate(v),
-            lambda ix: ix[0] - ix[1],
-        ):
-            streaks_by_user[k].append(list(map(itemgetter(1), g)))
-
-    leaderboard: list = []
-    for k, v in guesses_by_user.items():
-        leaderboard.append(
-            {
-                "PhoneNumber": k,
-                "Average": round(sum(v) / len(v), 2),
-                "WinPercentage": round(len(wins_by_user[k]) / len(v) * 100, 2),
-                "CurrentStreak": len(streaks_by_user[k][-1]),
-            }
-        )
-
-    return sorted(leaderboard, key=lambda x: x["Average"])
+    return sorted(
+        [user(user=u) for u in set([i["PhoneNumber"] for i in items])],
+        key=lambda x: x["Average"],
+    )
 
 
 @app.get("/users")
@@ -186,21 +159,33 @@ def user(user: str) -> dict:
             ":who": int(user),
         },
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
-        ProjectionExpression="PuzzleNumber,Guesses,Victory",
+        ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
     )["Items"]
+
+    wins: list = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]
 
     # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
     streaks: list = []
     for _, g in groupby(
-        enumerate([i["PuzzleNumber"] for i in items if i["Victory"]]),
+        enumerate(wins),
         lambda ix: ix[0] - ix[1],
     ):
         streaks.append(list(map(itemgetter(1), g)))
 
     return {
+        "PhoneNumber": int(user),
         "Puzzles": sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True),
-        "LongestStreak": sorted([len(i) for i in streaks])[-1],
-        "CurrentStreak": len(streaks[-1]),
+        "Wins": sorted(wins, key=int, reverse=True),
+        "WinPercentage": len(wins) / len(items),
+        "Average": round(sum([int(i["Guesses"]) for i in items]) / len(items), 2),
+        "LongestStreak": 0
+        if len(streaks) < 1
+        else sorted([len(s) for s in streaks])[-1],
+        "CurrentStreak": (
+            0
+            if len(items) < 1
+            else (len(streaks[-1]) if wins[-1] == items[-1]["PuzzleNumber"] else 0)
+        ),
     }
 
 
@@ -248,4 +233,4 @@ def get_health() -> str:
 
 def api_handler(event: dict, context: LambdaContext) -> str:
     logger.debug(event)
-    return app.resolve(event, context)
+    return True if "warmer" in event else app.resolve(event, context)

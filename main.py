@@ -54,10 +54,10 @@ def get_todays_puzzle_number(ip: str) -> int:
 
 
 def get_user_utc_offset(ip: str) -> int:
-    response: requests.Response = requests.get(f"https://ipapi.co/{ip}/json")
+    response: requests.Response = requests.get(f"https://worldtimeapi.org/api/ip/{ip}")
     response.raise_for_status()
 
-    raw_offset: int = int(response.json()["utc_offset"])
+    raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
     sign = -1 if raw_offset < 0 else 1
     raw_offset = abs(raw_offset)
 
@@ -205,9 +205,13 @@ def user(user: str) -> dict:
 
 
 @app.get("/today")
-def today() -> int:
+def today() -> dict:
     logger.debug(app.current_event.request_context.http.source_ip)
-    return get_todays_puzzle_number(ip=app.current_event.request_context.http.source_ip)
+    return {
+        "PuzzleNumber": get_todays_puzzle_number(
+            ip=app.current_event.request_context.http.source_ip
+        )
+    }
 
 
 @app.get("/puzzle/<puzzle>")

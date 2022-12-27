@@ -166,13 +166,14 @@ def leaderboard() -> list:
 @app.get("/users")
 def users() -> list:
     return list(
-        set(
-            sorted(
+        sorted(
+            set(
                 [
-                    i["PhoneNumber"]
+                    int(i["PhoneNumber"])
                     for i in scores.scan(ProjectionExpression="PhoneNumber")["Items"]
                 ]
-            )
+            ),
+            key=int,
         )
     )
 
@@ -238,15 +239,17 @@ def today() -> dict:
 
 @app.get("/puzzles")
 def puzzles() -> list:
-    return list(
-        set(
-            sorted(
+    return sorted(
+        list(
+            set(
                 [
-                    i["PuzzleNumber"]
+                    int(i["PuzzleNumber"])
                     for i in scores.scan(ProjectionExpression="PuzzleNumber")["Items"]
                 ]
             )
-        )
+        ),
+        key=int,
+        reverse=True,
     )
 
 

@@ -1,6 +1,7 @@
 import boto3
 import re
 import time
+import requests
 
 from collections import defaultdict
 from itertools import groupby
@@ -41,12 +42,26 @@ def sms_response(msg: str) -> Response:
     )
 
 
-def get_todays_puzzle_number() -> int:
+def get_todays_puzzle_number(ip: str) -> int:
+    offset: int = get_user_utc_offset(ip=ip)
+    hours_since_epoch: int = time.time() / 60 / 60 + offset
+
     return (
-        int(time.time() / 60 / 60 / 24)
+        int(hours_since_epoch / 24)
         - config.reference["days_since_epoch"]
         + config.reference["puzzle_number"]
     )
+
+
+def get_user_utc_offset(ip: str) -> int:
+    response: requests.Response = requests.get(f"https://ipapi.co/{ip}/json")
+    response.raise_for_status()
+
+    raw_offset: int = int(response.json()["utc_offset"])
+    sign = -1 if raw_offset < 0 else 1
+    raw_offset = abs(raw_offset)
+
+    return (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
 
 
 @app.post("/post")
@@ -95,10 +110,18 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> list:
+    logger.debug(app.current_event.request_context.http.source_ip)
     logger.debug(app.current_event.query_string_parameters)
 
     limit = int(app.current_event.get_query_string_value("limit", default_value=7))
-    then: int = 0 if limit == 0 else get_todays_puzzle_number() - limit
+    then: int = (
+        0
+        if limit == 0
+        else get_todays_puzzle_number(
+            ip=app.current_event.request_context.http.source_ip
+        )
+        - limit
+    )
 
     items: list = scores.scan(
         ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
@@ -183,7 +206,11 @@ def user(user: str) -> dict:
 
 @app.get("/today")
 def today() -> dict:
-    todays_puzzle: int = get_todays_puzzle_number()
+    logger.debug(app.current_event.request_context.http.source_ip)
+
+    todays_puzzle: int = get_todays_puzzle_number(
+        ip=app.current_event.request_context.http.source_ip
+    )
 
     items: list = scores.scan(
         FilterExpression="#PuzzleNumber = :today",

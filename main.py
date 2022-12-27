@@ -205,36 +205,9 @@ def user(user: str) -> dict:
 
 
 @app.get("/today")
-def today() -> dict:
+def today() -> int:
     logger.debug(app.current_event.request_context.http.source_ip)
-
-    todays_puzzle: int = get_todays_puzzle_number(
-        ip=app.current_event.request_context.http.source_ip
-    )
-
-    items: list = scores.scan(
-        FilterExpression="#PuzzleNumber = :today",
-        ExpressionAttributeValues={
-            ":today": todays_puzzle,
-        },
-        ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
-        ProjectionExpression="PhoneNumber,Guesses,Victory",
-    )["Items"]
-
-    return {
-        "PuzzleNumber": todays_puzzle,
-        "Users": sorted(
-            [
-                {
-                    "PhoneNumber": i["PhoneNumber"],
-                    "Guesses": int(i["Guesses"]),
-                    "Victory": i["Victory"],
-                }
-                for i in items
-            ],
-            key=lambda x: x["Guesses"],
-        ),
-    }
+    return get_todays_puzzle_number(ip=app.current_event.request_context.http.source_ip)
 
 
 @app.get("/puzzles")

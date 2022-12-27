@@ -210,22 +210,6 @@ def today() -> int:
     return get_todays_puzzle_number(ip=app.current_event.request_context.http.source_ip)
 
 
-@app.get("/puzzles")
-def puzzles() -> list:
-    return sorted(
-        list(
-            set(
-                [
-                    int(i["PuzzleNumber"])
-                    for i in scores.scan(ProjectionExpression="PuzzleNumber")["Items"]
-                ]
-            )
-        ),
-        key=int,
-        reverse=True,
-    )
-
-
 @app.get("/puzzle/<puzzle>")
 def puzzle(puzzle: str) -> dict:
     items: list = scores.scan(

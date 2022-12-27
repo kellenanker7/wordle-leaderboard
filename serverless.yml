@@ -78,9 +78,6 @@ functions:
           path: '/today'
           method: GET
       - httpApi:
-          path: '/puzzles'
-          method: GET
-      - httpApi:
           path: '/puzzle/{puzzle}'
           method: GET
       - httpApi:

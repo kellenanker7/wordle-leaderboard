@@ -149,7 +149,6 @@ def leaderboard() -> list:
         ):
             streaks_by_user[k].append(list(map(itemgetter(1), g)))
 
-    logger.debug(streaks_by_user)
     leaderboard: list = []
     for k, v in guesses_by_user.items():
         leaderboard.append(

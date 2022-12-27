@@ -176,7 +176,7 @@ def user(user: str) -> dict:
         "PhoneNumber": int(user),
         "Puzzles": sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True),
         "Wins": sorted(wins, key=int, reverse=True),
-        "WinPercentage": len(wins) / len(items),
+        "WinPercentage": round((len(wins) / len(items)) * 100, 2),
         "Average": round(sum([int(i["Guesses"]) for i in items]) / len(items), 2),
         "LongestStreak": 0
         if len(streaks) < 1

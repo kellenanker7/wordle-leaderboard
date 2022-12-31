@@ -130,14 +130,17 @@ def leaderboard() -> list:
         ExpressionAttributeValues={":then": then},
     )["Items"]
 
-    return [
-        x
-        for x in sorted(
-            [user(user=u) for u in set([i["PhoneNumber"] for i in items])],
-            key=lambda x: x["Average"],
-        )
-        if len(x["Wins"]) >= 3
-    ]
+    return sorted(
+        [
+            x
+            for x in [
+                user(user=u, leaderboard=True)
+                for u in set([i["PhoneNumber"] for i in items])
+            ]
+            if x
+        ],
+        key=lambda x: x["Average"],
+    )
 
 
 @app.get("/users")
@@ -156,7 +159,7 @@ def users() -> list:
 
 
 @app.get("/user/<user>")
-def user(user: str) -> dict:
+def user(user: str = "", leaderboard: bool = False) -> dict:
     items: list = scores.scan(
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={
@@ -167,6 +170,8 @@ def user(user: str) -> dict:
     )["Items"]
 
     wins: list = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]
+    if leaderboard and len(wins) <= 3:
+        return None
 
     # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
     streaks: list = []
@@ -211,19 +216,19 @@ def today() -> dict:
     }
 
 
-@app.get("/puzzle/<puzzle>")
-def puzzle(puzzle: str) -> dict:
+@app.get("/wordle/<wordle>")
+def wordle(wordle: str) -> dict:
     items: list = scores.scan(
         FilterExpression="#PuzzleNumber = :puzzle",
         ExpressionAttributeValues={
-            ":puzzle": int(puzzle),
+            ":puzzle": int(wordle),
         },
         ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
     return {
-        "PuzzleNumber": puzzle,
+        "PuzzleNumber": wordle,
         "Users": sorted(
             [
                 {

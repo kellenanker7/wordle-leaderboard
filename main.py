@@ -130,10 +130,14 @@ def leaderboard() -> list:
         ExpressionAttributeValues={":then": then},
     )["Items"]
 
-    return sorted(
-        [user(user=u) for u in set([i["PhoneNumber"] for i in items])],
-        key=lambda x: x["Average"],
-    )
+    return [
+        x
+        for x in sorted(
+            [user(user=u) for u in set([i["PhoneNumber"] for i in items])],
+            key=lambda x: x["Average"],
+        )
+        if len(x["Wins"]) >= 3
+    ]
 
 
 @app.get("/users")
@@ -188,6 +192,10 @@ def user(user: str) -> dict:
         "CurrentStreak": (
             0
             if len(items) < 1
+            or len(wins) < 1
+            or wins[-1]
+            < get_todays_puzzle_number(app.current_event.request_context.http.source_ip)
+            - 1
             else (len(streaks[-1]) if wins[-1] == items[-1]["PuzzleNumber"] else 0)
         ),
     }

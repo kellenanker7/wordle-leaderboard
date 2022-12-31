@@ -85,7 +85,7 @@ functions:
           path: '/today'
           method: GET
       - httpApi:
-          path: '/puzzle/{puzzle}'
+          path: '/wordle/{wordle}'
           method: GET
       - httpApi:
           path: '/users'

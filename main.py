@@ -71,7 +71,6 @@ def get_user_utc_offset(ip: str) -> int:
 def post_score() -> str:
     try:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
-        logger.debug(decoded_body)
 
         who: int = int(decoded_body["From"][2:])
         first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
@@ -112,7 +111,6 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> list:
-    logger.debug(app.current_event.request_context.http.source_ip)
     logger.debug(app.current_event.query_string_parameters)
 
     limit = int(app.current_event.get_query_string_value("limit", default_value=7))
@@ -210,7 +208,6 @@ def user(user: str = "", leaderboard: bool = False) -> dict:
 
 @app.get("/today")
 def today() -> dict:
-    logger.debug(app.current_event.request_context.http.source_ip)
     return {
         "PuzzleNumber": get_todays_puzzle_number(
             ip=app.current_event.request_context.http.source_ip

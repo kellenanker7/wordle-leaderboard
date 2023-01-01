@@ -8,6 +8,7 @@ authors = ["KELLEN ANKER <kellenanker7@gmail.com>"]
 python = "^3.9"
 aws-lambda-powertools = "^1.25.1"
 twilio = "^7.16.0"
+bs4 = "^0.0.1"
 
 [tool.poetry.dev-dependencies]
 

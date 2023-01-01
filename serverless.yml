@@ -40,14 +40,18 @@ provider:
             - dynamodb:UpdateItem
             - dynamodb:Query
             - dynamodb:Scan
-          Resource: !GetAtt ScoresTable.Arn
+          Resource:
+            - !GetAtt ScoresTable.Arn
+            - !GetAtt WordlesTable.Arn
 
   environment:
     LOG_LEVEL: DEBUG
     SCORES_TABLE: !Ref ScoresTable
+    WORDLES_TABLE: !Ref WordlesTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     WEBHOOK_TOKEN: !Ref WebhookTokenSecret
     TZ_API: https://worldtimeapi.org/api/ip/
+    WORDLE_ARCHIVE_API: https://mashable.com/article/wordle-archive
 
 package:
   individually: true
@@ -72,6 +76,12 @@ functions:
           rate: rate(5 minutes)
           input:
             warmer: "yes"
+      - schedule:
+          name: wordle-answer-updater
+          description: Get daily wordle export
+          rate: cron(0 0 * * ? *)
+          input:
+            updater: "yes"
       - httpApi:
           path: '/post'
           method: POST
@@ -145,6 +155,18 @@ resources:
             KeyType: HASH
           - AttributeName: PuzzleNumber
             KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+
+    WordlesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: wordles
+        AttributeDefinitions:
+          - AttributeName: Id
+            AttributeType: N
+        KeySchema:
+          - AttributeName: Id
+            KeyType: HASH
         BillingMode: PAY_PER_REQUEST
 
     TwilioAuthTokenSecret:

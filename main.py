@@ -17,12 +17,14 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 from aws_lambda_powertools.event_handler import APIGatewayHttpResolver
 from aws_lambda_powertools.event_handler.api_gateway import Response
 
+from bs4 import BeautifulSoup
 
 config = Config()
 logger = Logger()
 app = APIGatewayHttpResolver()
 
 scores = boto3.resource("dynamodb").Table(config.scores_table)
+wordles = boto3.resource("dynamodb").Table(config.wordles_table)
 
 responses: dict = {
     1: "Hole in one!",
@@ -227,8 +229,25 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
+    answer: str = None
+    try:
+        if int(wordle) < get_todays_puzzle_number(
+            ip=app.current_event.request_context.http.source_ip
+        ):
+            answer: str = (
+                wordles.query(
+                    KeyConditionExpression="#Id = :val",
+                    ExpressionAttributeNames={"#Id": "Id"},
+                    ExpressionAttributeValues={":val": int(wordle)},
+                    Limit=1,
+                )["Items"][0]["Answer"],
+            )
+    except IndexError:
+        pass
+
     return {
         "PuzzleNumber": wordle,
+        "Answer": answer,
         "Users": sorted(
             [
                 {
@@ -250,4 +269,9 @@ def get_health() -> str:
 
 def api_handler(event: dict, context: LambdaContext) -> str:
     logger.debug(event)
-    return True if "warmer" in event else app.resolve(event, context)
+    if "warmer" in event:
+        return True
+    elif "updater" in event:
+        return update_wordle_answers()
+    else:
+        return app.resolve(event, context)

@@ -95,6 +95,9 @@ functions:
           path: '/today'
           method: GET
       - httpApi:
+          path: '/wordles'
+          method: GET
+      - httpApi:
           path: '/wordle/{wordle}'
           method: GET
       - httpApi:

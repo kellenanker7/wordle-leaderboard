@@ -218,6 +218,14 @@ def today() -> dict:
     }
 
 
+@app.get("/wordles")
+def users() -> list:
+    return sorted(
+        [i for i in wordles.scan()["Items"]],
+        key=lambda x: x["Id"],
+    )
+
+
 @app.get("/wordle/<wordle>")
 def wordle(wordle: str) -> dict:
     items: list = scores.scan(

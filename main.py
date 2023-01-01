@@ -221,7 +221,7 @@ def users() -> list:
         [i for i in wordles.scan()["Items"]],
         key=lambda x: x["Id"],
         reverse=True,
-    ) + [get_todays_puzzle_number(ip=app.current_event.request_context.http.source_ip)]
+    )
 
 
 @app.get("/wordle/<wordle>")

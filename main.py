@@ -44,7 +44,7 @@ def sms_response(msg: str) -> Response:
     )
 
 
-def get_todays_puzzle_number(ip: str) -> int:
+def get_todays_wordle_number(ip: str) -> int:
     offset: int = get_user_utc_offset(ip=ip)
     hours_since_epoch: int = time.time() / 60 / 60 + offset
 
@@ -64,6 +64,21 @@ def get_user_utc_offset(ip: str) -> int:
     raw_offset = abs(raw_offset)
 
     return (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
+
+
+def get_todays_wordle_answer() -> None:
+    content = BeautifulSoup(
+        requests.get(config.wordle_archive_api).text,
+        features="html.parser",
+    ).select("section.content")[0]
+
+    cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
+    wordles.put_item(
+        Item={
+            "Id": int(cell[1].get_text().strip()),
+            "Answer": cell[2].get_text().strip(),
+        },
+    )
 
 
 @app.post("/post")
@@ -117,7 +132,7 @@ def leaderboard() -> list:
     then: int = (
         0
         if limit == 0
-        else get_todays_puzzle_number(
+        else get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         )
         - limit
@@ -199,7 +214,7 @@ def user(user: str = "", leaderboard: bool = False) -> dict:
             if len(items) < 1
             or len(wins) < 1
             or wins[-1]
-            < get_todays_puzzle_number(app.current_event.request_context.http.source_ip)
+            < get_todays_wordle_number(app.current_event.request_context.http.source_ip)
             - 1
             else (len(streaks[-1]) if wins[-1] == items[-1]["PuzzleNumber"] else 0)
         ),
@@ -209,7 +224,7 @@ def user(user: str = "", leaderboard: bool = False) -> dict:
 @app.get("/today")
 def today() -> dict:
     return {
-        "PuzzleNumber": get_todays_puzzle_number(
+        "PuzzleNumber": get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         )
     }
@@ -237,7 +252,7 @@ def wordle(wordle: str) -> dict:
 
     answer: str = None
     try:
-        if int(wordle) < get_todays_puzzle_number(
+        if int(wordle) < get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
             answer: str = (
@@ -278,6 +293,6 @@ def api_handler(event: dict, context: LambdaContext) -> str:
     if "warmer" in event:
         return True
     elif "updater" in event:
-        return update_wordle_answers()
+        return get_todays_wordle_answer()
     else:
         return app.resolve(event, context)

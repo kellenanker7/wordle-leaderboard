@@ -51,7 +51,7 @@ provider:
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     WEBHOOK_TOKEN: !Ref WebhookTokenSecret
     TZ_API: https://worldtimeapi.org/api/ip/
-    WORDLE_ARCHIVE_API: https://mashable.com/article/wordle-archive
+    WORDLE_ARCHIVE_API: https://wordfinder.yourdictionary.com/wordle/answers
 
 package:
   individually: true
@@ -79,7 +79,7 @@ functions:
       - schedule:
           name: wordle-answer-updater
           description: Get daily wordle export
-          rate: cron(0 0 * * ? *)
+          rate: cron(15 0 * * ? *)
           input:
             updater: "yes"
       - httpApi:

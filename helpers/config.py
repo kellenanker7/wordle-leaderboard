@@ -12,8 +12,8 @@ class Config:
         self._twilio_auth_token: str = parameters.get_secret(
             os.environ.get("TWILIO_AUTH_TOKEN")
         )
-        self._webhook_token: str = parameters.get_secret(
-            os.environ.get("WEBHOOK_TOKEN")
+        self._twilio_account_sid: str = parameters.get_secret(
+            os.environ.get("TWILIO_ACCOUNT_SID")
         )
 
         # Puzzle 550 was 19347 days since epoch
@@ -42,8 +42,8 @@ class Config:
         return self._twilio_auth_token
 
     @property
-    def webhook_token(self) -> str:
-        return self._webhook_token
+    def twilio_account_sid(self) -> str:
+        return self._twilio_account_sid
 
     @property
     def reference(self) -> str:

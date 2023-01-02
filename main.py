@@ -2,6 +2,7 @@ import boto3
 import re
 import time
 import requests
+from twilio.rest import Client
 
 from collections import defaultdict
 from decimal import Decimal
@@ -23,6 +24,8 @@ from urllib.parse import parse_qsl
 config = Config()
 logger = Logger()
 app = APIGatewayHttpResolver()
+
+client = Client(config.twilio_account_sid, config.twilio_auth_token)
 
 scores = boto3.resource("dynamodb").Table(config.scores_table)
 wordles = boto3.resource("dynamodb").Table(config.wordles_table)
@@ -151,8 +154,6 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> list:
-    logger.debug(app.current_event.query_string_parameters)
-
     limit = int(app.current_event.get_query_string_value("limit", default_value=7))
     then: int = (
         0

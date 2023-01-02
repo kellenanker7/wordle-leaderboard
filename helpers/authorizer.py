@@ -17,7 +17,7 @@ def authorize(app):
             try:
                 assert (
                     app.current_event.query_string_parameters["token"]
-                    == config.webhook_token
+                    == config.twilio_account_sid
                 )
             except:
                 raise UnauthorizedError("Unauthorized")

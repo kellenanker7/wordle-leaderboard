@@ -4,13 +4,12 @@ import time
 import requests
 
 from collections import defaultdict
+from decimal import Decimal
 from itertools import groupby
 from operator import itemgetter
 
 from helpers.authorizer import authorize
 from helpers.config import Config
-
-from urllib.parse import parse_qsl
 
 from aws_lambda_powertools import Logger
 from aws_lambda_powertools.utilities.typing import LambdaContext
@@ -19,12 +18,15 @@ from aws_lambda_powertools.event_handler.api_gateway import Response
 
 from bs4 import BeautifulSoup
 
+from urllib.parse import parse_qsl
+
 config = Config()
 logger = Logger()
 app = APIGatewayHttpResolver()
 
 scores = boto3.resource("dynamodb").Table(config.scores_table)
 wordles = boto3.resource("dynamodb").Table(config.wordles_table)
+ip_utc_offset = boto3.resource("dynamodb").Table(config.ip_utc_offset_table)
 
 responses: dict = {
     1: "Hole in one!",
@@ -45,7 +47,7 @@ def sms_response(msg: str) -> Response:
 
 
 def get_todays_wordle_number(ip: str) -> int:
-    offset: int = get_user_utc_offset(ip=ip)
+    offset: int = int(get_user_utc_offset(ip=ip))
     hours_since_epoch: int = time.time() / 60 / 60 + offset
 
     return (
@@ -55,15 +57,38 @@ def get_todays_wordle_number(ip: str) -> int:
     )
 
 
-def get_user_utc_offset(ip: str) -> int:
-    response: requests.Response = requests.get(f"{config.tz_api}{ip}")
-    response.raise_for_status()
+def get_user_utc_offset(ip: str) -> Decimal:
+    try:
+        return ip_utc_offset.query(
+            ProjectionExpression="UtcOffest",
+            KeyConditionExpression="#IpAddress = :val",
+            ExpressionAttributeNames={"#IpAddress": "IpAddress"},
+            ExpressionAttributeValues={":val": ip},
+            Limit=1,
+        )["Items"][0]["UtcOffest"]
 
-    raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
-    sign = -1 if raw_offset < 0 else 1
-    raw_offset = abs(raw_offset)
+    except (KeyError, IndexError):
+        logger.info(f"Cache miss: {ip}")
 
-    return (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
+        response: requests.Response = requests.get(f"{config.tz_api}{ip}")
+        response.raise_for_status()
+
+        raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
+        sign = -1 if raw_offset < 0 else 1
+        raw_offset = abs(raw_offset)
+
+        utc_offset: Decimal = Decimal(
+            (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
+        )
+
+        ip_utc_offset.put_item(
+            Item={
+                "IpAddress": ip,
+                "UtcOffest": utc_offset,
+            },
+        )
+
+        return utc_offset
 
 
 def get_todays_wordle_answer() -> None:
@@ -252,7 +277,7 @@ def wordle(wordle: str) -> dict:
 
     answer: str = None
     try:
-        if int(wordle) < get_todays_wordle_number(
+        if int(wordle) <= get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
             answer: str = (
@@ -263,7 +288,7 @@ def wordle(wordle: str) -> dict:
                     Limit=1,
                 )["Items"][0]["Answer"],
             )
-    except IndexError:
+    except (KeyError, IndexError):
         pass
 
     return {

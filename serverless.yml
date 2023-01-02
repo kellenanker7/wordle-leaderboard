@@ -43,11 +43,13 @@ provider:
           Resource:
             - !GetAtt ScoresTable.Arn
             - !GetAtt WordlesTable.Arn
+            - !GetAtt IpUtcOffsetLookupTable.Arn
 
   environment:
     LOG_LEVEL: DEBUG
     SCORES_TABLE: !Ref ScoresTable
     WORDLES_TABLE: !Ref WordlesTable
+    IP_UTC_OFFSET_TABLE: !Ref IpUtcOffsetLookupTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     WEBHOOK_TOKEN: !Ref WebhookTokenSecret
     TZ_API: https://worldtimeapi.org/api/ip/
@@ -169,6 +171,18 @@ resources:
             AttributeType: N
         KeySchema:
           - AttributeName: Id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+
+    IpUtcOffsetLookupTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ip-utc-offset-lookup
+        AttributeDefinitions:
+          - AttributeName: IpAddress
+            AttributeType: S
+        KeySchema:
+          - AttributeName: IpAddress
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
 

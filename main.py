@@ -177,31 +177,17 @@ def post_score() -> str:
 
 @app.get("/leaderboard")
 def leaderboard() -> list:
-    limit = int(app.current_event.get_query_string_value("limit", default_value=7))
-    then: int = (
-        0
-        if limit == 0
-        else get_todays_wordle_number(
-            ip=app.current_event.request_context.http.source_ip
-        )
-        - limit
-    )
-
-    items: list = scores_table.scan(
-        ProjectionExpression="PhoneNumber",
-        FilterExpression="#PuzzleNumber >= :then",
-        ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
-        ExpressionAttributeValues={":then": then},
-    )["Items"]
-
     return sorted(
         [
-            x
-            for x in [
-                user(user=u, leaderboard=True)
-                for u in set([i["PhoneNumber"] for i in items])
-            ]
-            if x
+            user(user=u)
+            for u in set(
+                [
+                    i["PhoneNumber"]
+                    for i in scores_table.scan(ProjectionExpression="PhoneNumber")[
+                        "Items"
+                    ]
+                ]
+            )
         ],
         key=lambda x: x["Average"],
     )
@@ -213,19 +199,15 @@ def users() -> list:
 
 
 @app.get("/user/<user>")
-def user(user: str = "", leaderboard: bool = False) -> dict:
+def user(user: str) -> dict:
     items: list = scores_table.scan(
         FilterExpression="#PhoneNumber = :who",
-        ExpressionAttributeValues={
-            ":who": int(user),
-        },
+        ExpressionAttributeValues={":who": int(user)},
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
         ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
     )["Items"]
 
     wins: list = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]
-    if leaderboard and len(wins) <= 3:
-        return None
 
     # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
     streaks: list = []

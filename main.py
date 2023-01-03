@@ -285,7 +285,14 @@ def today() -> dict:
 @app.get("/wordles")
 def users() -> list:
     return sorted(
-        [i for i in wordles_table.scan()["Items"]],
+        [
+            i
+            for i in wordles_table.scan()["Items"]
+            if i["Id"]
+            < get_todays_wordle_number(
+                ip=app.current_event.request_context.http.source_ip
+            )
+        ],
         key=lambda x: x["Id"],
         reverse=True,
     )

@@ -27,8 +27,9 @@ app = APIGatewayHttpResolver()
 
 client = Client(config.twilio_account_sid, config.twilio_auth_token)
 
-scores = boto3.resource("dynamodb").Table(config.scores_table)
-wordles = boto3.resource("dynamodb").Table(config.wordles_table)
+scores_table = boto3.resource("dynamodb").Table(config.scores_table)
+wordles_table = boto3.resource("dynamodb").Table(config.wordles_table)
+users_table = boto3.resource("dynamodb").Table(config.users_table)
 ip_utc_offset = boto3.resource("dynamodb").Table(config.ip_utc_offset_table)
 
 responses: dict = {
@@ -101,7 +102,7 @@ def get_todays_wordle_answer() -> None:
     ).select("section.content")[0]
 
     cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
-    wordles.put_item(
+    wordles_table.put_item(
         Item={
             "Id": int(cell[1].get_text().strip()),
             "Answer": cell[2].get_text().strip(),
@@ -115,7 +116,7 @@ def post_score() -> str:
     try:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
 
-        who: int = int(decoded_body["From"][2:])
+        phone_number: int = int(decoded_body["From"][2:])
         first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
 
         chunks: list = first_line.split(" ")
@@ -133,15 +134,37 @@ def post_score() -> str:
         return sms_response(msg="Invalid Wordle payload")
 
     try:
-        scores.put_item(
+        scores_table.put_item(
             Item={
-                "PhoneNumber": who,
+                "PhoneNumber": phone_number,
                 "PuzzleNumber": puzzle_number,
                 "Guesses": guesses,
                 "Victory": victory,
                 "CreateTime": int(time.time()),
             },
         )
+
+        try:
+            users_table.query(
+                ProjectionExpression="CallerName",
+                KeyConditionExpression="#PhoneNumber = :val",
+                ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
+                ExpressionAttributeValues={":val": phone_number},
+                Limit=1,
+            )["Items"][0]["CallerName"]
+        except (KeyError, IndexError):
+            logger.info(f"Cache miss: {phone_number}")
+            users_table.put_item(
+                Item={
+                    "PhoneNumber": phone_number,
+                    "CallerName": dict(
+                        client.lookups.v2.phone_numbers(phone_number)
+                        .fetch(fields="caller_name")
+                        .caller_name
+                    )["caller_name"],
+                },
+            )
+
         return sms_response(
             msg=(responses[guesses] if victory else "Better luck tomorrow!")
             + "\n\nwordle.kellenanker.com"
@@ -164,7 +187,7 @@ def leaderboard() -> list:
         - limit
     )
 
-    items: list = scores.scan(
+    items: list = scores_table.scan(
         ProjectionExpression="PhoneNumber",
         FilterExpression="#PuzzleNumber >= :then",
         ExpressionAttributeNames={"#PuzzleNumber": "PuzzleNumber"},
@@ -186,22 +209,12 @@ def leaderboard() -> list:
 
 @app.get("/users")
 def users() -> list:
-    return list(
-        sorted(
-            set(
-                [
-                    int(i["PhoneNumber"])
-                    for i in scores.scan(ProjectionExpression="PhoneNumber")["Items"]
-                ]
-            ),
-            key=int,
-        )
-    )
+    return sorted(users_table.scan()["Items"], key=lambda x: x["CallerName"])
 
 
 @app.get("/user/<user>")
 def user(user: str = "", leaderboard: bool = False) -> dict:
-    items: list = scores.scan(
+    items: list = scores_table.scan(
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={
             ":who": int(user),
@@ -222,7 +235,20 @@ def user(user: str = "", leaderboard: bool = False) -> dict:
     ):
         streaks.append(list(map(itemgetter(1), g)))
 
+    # Shouldn't be needed once everyone texts in again
+    try:
+        caller_name: str = users_table.query(
+            ProjectionExpression="CallerName",
+            KeyConditionExpression="#PhoneNumber = :val",
+            ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
+            ExpressionAttributeValues={":val": int(user)},
+            Limit=1,
+        )["Items"][0]["CallerName"]
+    except:
+        caller_name = None
+
     return {
+        "CallerName": caller_name,
         "PhoneNumber": int(user),
         "Puzzles": sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True),
         "Wins": sorted(wins, key=int, reverse=True),
@@ -259,7 +285,7 @@ def today() -> dict:
 @app.get("/wordles")
 def users() -> list:
     return sorted(
-        [i for i in wordles.scan()["Items"]],
+        [i for i in wordles_table.scan()["Items"]],
         key=lambda x: x["Id"],
         reverse=True,
     )
@@ -267,7 +293,7 @@ def users() -> list:
 
 @app.get("/wordle/<wordle>")
 def wordle(wordle: str) -> dict:
-    items: list = scores.scan(
+    items: list = scores_table.scan(
         FilterExpression="#PuzzleNumber = :puzzle",
         ExpressionAttributeValues={
             ":puzzle": int(wordle),
@@ -276,13 +302,12 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
-    answer: str = None
     try:
         if int(wordle) <= get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
             answer: str = (
-                wordles.query(
+                wordles_table.query(
                     KeyConditionExpression="#Id = :val",
                     ExpressionAttributeNames={"#Id": "Id"},
                     ExpressionAttributeValues={":val": int(wordle)},
@@ -290,27 +315,39 @@ def wordle(wordle: str) -> dict:
                 )["Items"][0]["Answer"],
             )
     except (KeyError, IndexError):
-        pass
+        answer = None
+
+    participants: list = []
+    for i in items:
+        try:
+            caller_name: str = users_table.query(
+                ProjectionExpression="CallerName",
+                KeyConditionExpression="#PhoneNumber = :val",
+                ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
+                ExpressionAttributeValues={":val": i["PhoneNumber"]},
+                Limit=1,
+            )["Items"][0]["CallerName"]
+        except:
+            caller_name = None
+
+        participants.append(
+            {
+                "CallerName": caller_name,
+                "PhoneNumber": i["PhoneNumber"],
+                "Guesses": int(i["Guesses"]),
+                "Victory": i["Victory"],
+            }
+        )
 
     return {
         "PuzzleNumber": wordle,
         "Answer": answer,
-        "Users": sorted(
-            [
-                {
-                    "PhoneNumber": i["PhoneNumber"],
-                    "Guesses": int(i["Guesses"]),
-                    "Victory": i["Victory"],
-                }
-                for i in items
-            ],
-            key=lambda x: x["Guesses"],
-        ),
+        "Users": sorted(participants, key=lambda x: x["Guesses"]),
     }
 
 
 @app.get("/health")
-def get_health() -> str:
+def health() -> str:
     return {"status": "alive"}
 
 

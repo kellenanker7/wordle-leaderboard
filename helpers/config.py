@@ -7,6 +7,7 @@ class Config:
     def __init__(self):
         self._scores_table: str = os.environ.get("SCORES_TABLE")
         self._wordles_table: str = os.environ.get("WORDLES_TABLE")
+        self._users_table: str = os.environ.get("USERS_TABLE")
         self._ip_utc_offset_table: str = os.environ.get("IP_UTC_OFFSET_TABLE")
 
         self._twilio_auth_token: str = parameters.get_secret(
@@ -32,6 +33,10 @@ class Config:
     @property
     def wordles_table(self) -> str:
         return self._wordles_table
+
+    @property
+    def users_table(self) -> str:
+        return self._users_table
 
     @property
     def ip_utc_offset_table(self) -> str:

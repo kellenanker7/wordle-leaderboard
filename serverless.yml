@@ -43,12 +43,14 @@ provider:
           Resource:
             - !GetAtt ScoresTable.Arn
             - !GetAtt WordlesTable.Arn
+            - !GetAtt UsersTable.Arn
             - !GetAtt IpUtcOffsetLookupTable.Arn
 
   environment:
     LOG_LEVEL: DEBUG
     SCORES_TABLE: !Ref ScoresTable
     WORDLES_TABLE: !Ref WordlesTable
+    USERS_TABLE: !Ref UsersTable
     IP_UTC_OFFSET_TABLE: !Ref IpUtcOffsetLookupTable
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid

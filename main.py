@@ -119,6 +119,7 @@ def get_todays_wordle_answer() -> None:
                 )
     except Exception as e:
         logger.warn(f"Definition(s) not found for {answer}")
+        definitions: list = [{"part_of_speech": "", "definitions": []}]
 
     wordles_table.put_item(
         Item={

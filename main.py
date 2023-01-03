@@ -104,18 +104,21 @@ def get_todays_wordle_answer() -> None:
     cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
     answer: str = cell[2].get_text().strip()
 
-    response: requests.Response = requests.get(f"{config.dictionary_api}{answer}")
-    response.raise_for_status()
+    try:
+        definitions: list = []
+        response: requests.Response = requests.get(f"{config.dictionary_api}{answer}")
+        response.raise_for_status()
 
-    definitions: list = []
-    for i in response.json():
-        for m in i["meanings"]:
-            definitions.append(
-                {
-                    "part_of_speech": m["partOfSpeech"],
-                    "definitions": [d["definition"] for d in m["definitions"]],
-                }
-            )
+        for i in response.json():
+            for m in i["meanings"]:
+                definitions.append(
+                    {
+                        "part_of_speech": m["partOfSpeech"],
+                        "definitions": [d["definition"] for d in m["definitions"]],
+                    }
+                )
+    except Exception as e:
+        logger.warn(f"Definition(s) not found for {answer}")
 
     wordles_table.put_item(
         Item={

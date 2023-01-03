@@ -102,10 +102,26 @@ def get_todays_wordle_answer() -> None:
     ).select("section.content")[0]
 
     cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
+    answer: str = cell[2].get_text().strip()
+
+    response: requests.Response = requests.get(f"{config.dictionary_api}{answer}")
+    response.raise_for_status()
+
+    definitions: list = []
+    for i in response.json():
+        for m in i["meanings"]:
+            definitions.append(
+                {
+                    "part_of_speech": m["partOfSpeech"],
+                    "definitions": [d["definition"] for d in m["definitions"]],
+                }
+            )
+
     wordles_table.put_item(
         Item={
             "Id": int(cell[1].get_text().strip()),
-            "Answer": cell[2].get_text().strip(),
+            "Answer": answer,
+            "Definitions": definitions,
         },
     )
 
@@ -287,19 +303,25 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
-    answer = None
+    answer: str = None
+    definitions: list = []
     try:
         if int(wordle) < get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
-            answer: str = (
-                wordles_table.query(
-                    KeyConditionExpression="#Id = :val",
-                    ExpressionAttributeNames={"#Id": "Id"},
-                    ExpressionAttributeValues={":val": int(wordle)},
-                    Limit=1,
-                )["Items"][0]["Answer"],
-            )
+            item: dict = wordles_table.query(
+                KeyConditionExpression="#Id = :val",
+                ExpressionAttributeNames={"#Id": "Id"},
+                ExpressionAttributeValues={":val": int(wordle)},
+                Limit=1,
+            )["Items"][0]
+            answer = item["Answer"]
+
+            # Until all wordle items have been updated
+            try:
+                definitions = item["Definitions"]
+            except:
+                pass
     except (KeyError, IndexError):
         pass
 
@@ -326,8 +348,9 @@ def wordle(wordle: str) -> dict:
         )
 
     return {
-        "PuzzleNumber": wordle,
+        "PuzzleNumber": int(wordle),
         "Answer": answer,
+        "Definitions": definitions,
         "Users": sorted(participants, key=lambda x: x["Guesses"]),
     }
 

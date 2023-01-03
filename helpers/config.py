@@ -25,6 +25,7 @@ class Config:
 
         self._tz_api = os.environ.get("TZ_API")
         self._wordle_archive_api = os.environ.get("WORDLE_ARCHIVE_API")
+        self._dictionary_api = os.environ.get("DICTIONARY_API")
 
     @property
     def scores_table(self) -> str:
@@ -61,3 +62,7 @@ class Config:
     @property
     def wordle_archive_api(self) -> str:
         return self._wordle_archive_api
+
+    @property
+    def dictionary_api(self) -> str:
+        return self._dictionary_api

@@ -56,6 +56,7 @@ provider:
     TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
     TZ_API: https://worldtimeapi.org/api/ip/
     WORDLE_ARCHIVE_API: https://wordfinder.yourdictionary.com/wordle/answers
+    DICTIONARY_API: https://api.dictionaryapi.dev/api/v2/entries/en/
 
 package:
   individually: true

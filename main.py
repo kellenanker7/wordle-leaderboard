@@ -204,7 +204,7 @@ def user(user: str) -> dict:
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={":who": int(user)},
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
-        ProjectionExpression="PhoneNumber,Guesses,Victory,PuzzleNumber",
+        ProjectionExpression="Guesses,Victory,PuzzleNumber",
     )["Items"]
 
     wins: list = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]

@@ -302,8 +302,9 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
+    answer = None
     try:
-        if int(wordle) <= get_todays_wordle_number(
+        if int(wordle) < get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
             answer: str = (
@@ -315,7 +316,7 @@ def wordle(wordle: str) -> dict:
                 )["Items"][0]["Answer"],
             )
     except (KeyError, IndexError):
-        answer = None
+        pass
 
     participants: list = []
     for i in items:

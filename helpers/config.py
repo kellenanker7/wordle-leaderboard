@@ -10,6 +10,9 @@ class Config:
         self._users_table: str = os.environ.get("USERS_TABLE")
         self._ip_utc_offset_table: str = os.environ.get("IP_UTC_OFFSET_TABLE")
 
+        self._twilio_messaging_service_sid: str = parameters.get_secret(
+            os.environ.get("TWILIO_MESSAGING_SERVICE_SID")
+        )
         self._twilio_auth_token: str = parameters.get_secret(
             os.environ.get("TWILIO_AUTH_TOKEN")
         )
@@ -42,6 +45,10 @@ class Config:
     @property
     def ip_utc_offset_table(self) -> str:
         return self._ip_utc_offset_table
+
+    @property
+    def twilio_messaging_service_sid(self) -> str:
+        return self._twilio_messaging_service_sid
 
     @property
     def twilio_auth_token(self) -> str:

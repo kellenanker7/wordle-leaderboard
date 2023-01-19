@@ -50,8 +50,8 @@ def sms_response(msg: str) -> Response:
     )
 
 
-def get_todays_wordle_number(ip: str) -> int:
-    offset: int = int(get_user_utc_offset(ip=ip))
+def get_todays_wordle_number(ip: str = None, utc_offset: int = None) -> int:
+    offset: int = utc_offset if utc_offset else int(get_user_utc_offset(ip=ip))
     hours_since_epoch: int = time.time() / 60 / 60 + offset
 
     return (
@@ -128,6 +128,34 @@ def get_todays_wordle_answer() -> None:
             "Definitions": definitions,
         },
     )
+
+
+def send_reminders() -> None:
+    for u in users_table.scan(ProjectionExpression="PhoneNumber")["Items"]:
+        if (
+            len(
+                scores_table.query(
+                    KeyConditionExpression="#PuzzleNumber = :puzzle AND #PhoneNumber = :who",
+                    ExpressionAttributeNames={
+                        "#PuzzleNumber": "PuzzleNumber",
+                        "#PhoneNumber": "PhoneNumber",
+                    },
+                    ExpressionAttributeValues={
+                        ":puzzle": get_todays_wordle_number(utc_offset=-5),
+                        ":who": u["PhoneNumber"],
+                    },
+                    Limit=1,
+                )["Items"]
+            )
+            == 0
+        ):
+            logger.info(f"Sending reminder to {u['PhoneNumber']}")
+            message = client.messages.create(
+                from_=config.twilio_messaging_service_sid,
+                body="Don't forget to do today's Wordle! Text your score to this number and compete against your friends!\n\nnytimes.com/games/wordle",
+                to=f"+1{u['PhoneNumber']}",
+            )
+            logger.debug(f"Sent {message.sid}")
 
 
 @app.post("/post")
@@ -370,5 +398,7 @@ def api_handler(event: dict, context: LambdaContext) -> str:
         return True
     elif "updater" in event:
         return get_todays_wordle_answer()
+    elif "reminder" in event:
+        return send_reminders()
     else:
         return app.resolve(event, context)

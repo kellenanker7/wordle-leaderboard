@@ -33,6 +33,7 @@ provider:
           Resource:
             - Ref: TwilioAuthTokenSecret
             - Ref: TwilioAccountSid
+            - Ref: TwilioMessagingServiceSid
         - Effect: Allow
           Action:
             - dynamodb:GetItem
@@ -52,6 +53,7 @@ provider:
     WORDLES_TABLE: !Ref WordlesTable
     USERS_TABLE: !Ref UsersTable
     IP_UTC_OFFSET_TABLE: !Ref IpUtcOffsetLookupTable
+    TWILIO_MESSAGING_SERVICE_SID: !Ref TwilioMessagingServiceSid
     TWILIO_AUTH_TOKEN: !Ref TwilioAuthTokenSecret
     TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
     TZ_API: https://worldtimeapi.org/api/ip/
@@ -83,10 +85,16 @@ functions:
             warmer: "yes"
       - schedule:
           name: wordle-answer-updater
-          description: Get daily wordle export
+          description: Get daily Wordle export
           rate: cron(15 0 * * ? *)
           input:
             updater: "yes"
+      - schedule:
+          name: wordle-reminder
+          description: Remind users to do the Wordle
+          rate: cron(0 23 * * ? *)
+          input:
+            reminder: "yes"
       - httpApi:
           path: '/post'
           method: POST
@@ -211,3 +219,8 @@ resources:
       Properties:
         Description: Twilio Account Sid
         Name: twilio/account-sid
+    TwilioMessagingServiceSid:
+      Type: AWS::SecretsManager::Secret
+      Properties:
+        Description: Twilio Messaging Service Sid
+        Name: twilio/messaging-service-sid

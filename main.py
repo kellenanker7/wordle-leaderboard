@@ -52,7 +52,7 @@ default_opt_in_out_msgs = [
     "yes",
     "unstop",
 ]
-reminder_msg: str = "Don't forget to do today's Wordle!\n\nnytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
+reminder_msg: str = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
 unsubscribed_msg: str = (
     "You will no longer receive daily Wordle reminders.\n\nText REMIND to opt back in."
 )

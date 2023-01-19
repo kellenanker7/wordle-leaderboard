@@ -41,6 +41,25 @@ responses: dict = {
     6: "Double bogey",
 }
 
+default_opt_in_out_msgs = [
+    "stop",
+    "stopall",
+    "unsubscribe",
+    "cancel",
+    "end",
+    "quit",
+    "start",
+    "yes",
+    "unstop",
+]
+reminder_msg: str = "Don't forget to do today's Wordle!\n\nnytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
+unsubscribed_msg: str = (
+    "You will no longer receive daily Wordle reminders.\n\nText REMIND to opt back in."
+)
+subscribed_msg: str = (
+    "Successfully subscribed to Wordle reminders!\n\nText ENOUGH to opt out."
+)
+
 
 def sms_response(msg: str) -> Response:
     return Response(
@@ -131,7 +150,10 @@ def get_todays_wordle_answer() -> None:
 
 
 def send_reminders() -> None:
-    for u in users_table.scan(ProjectionExpression="PhoneNumber")["Items"]:
+    for u in users_table.scan(
+        ProjectionExpression="PhoneNumber",
+        FilterExpression="attribute_not_exists(Unsubscribed)",
+    )["Items"]:
         if (
             len(
                 scores_table.query(
@@ -152,15 +174,41 @@ def send_reminders() -> None:
             logger.info(f"Sending reminder to {u['PhoneNumber']}")
             message = client.messages.create(
                 from_=config.twilio_messaging_service_sid,
-                body="Don't forget to do today's Wordle! Text your score to this number and compete against your friends!\n\nnytimes.com/games/wordle",
+                body=reminder_msg,
                 to=f"+1{u['PhoneNumber']}",
             )
             logger.debug(f"Sent {message.sid}")
 
 
+def unsubscribe_user(user: int) -> Response:
+    try:
+        users_table.update_item(
+            Key={"PhoneNumber": user},
+            UpdateExpression="SET #Unsubscribed = :val",
+            ExpressionAttributeNames={"#Unsubscribed": "Unsubscribed"},
+            ExpressionAttributeValues={":val": True},
+        )
+        return sms_response(msg=unsubscribed_msg)
+    except Exception as e:
+        logger.error(f"Error unsubscribing user {user}: {e}")
+        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+
+
+def subscribe_user(user: int) -> Response:
+    try:
+        users_table.update_item(
+            Key={"PhoneNumber": user},
+            UpdateExpression="REMOVE Unsubscribed",
+        )
+        return sms_response(msg=subscribed_msg)
+    except Exception as e:
+        logger.error(f"Error subscribing user {user}: {e}")
+        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+
+
 @app.post("/post")
 @authorize(app)
-def post_score() -> str:
+def post_score() -> Response:
     try:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
 
@@ -168,6 +216,15 @@ def post_score() -> str:
         first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
 
         chunks: list = first_line.split(" ")
+
+        # Handle some other message types
+        if chunks[0].lower() in default_opt_in_out_msgs:
+            return None
+        if chunks[0].lower() == "enough":
+            return unsubscribe_user(user=phone_number)
+        if chunks[0].lower() == "remind":
+            return subscribe_user(user=phone_number)
+
         puzzle_number: int = int(chunks[1])
 
         try:
@@ -178,7 +235,8 @@ def post_score() -> str:
             victory: int = False
 
         assert guesses >= 1 and guesses <= 6
-    except:
+    except Exception as e:
+        logger.error(e)
         return sms_response(msg="Invalid Wordle payload")
 
     try:

@@ -27,10 +27,11 @@ app = APIGatewayHttpResolver()
 
 client = Client(config.twilio_account_sid, config.twilio_auth_token)
 
-scores_table = boto3.resource("dynamodb").Table(config.scores_table)
-wordles_table = boto3.resource("dynamodb").Table(config.wordles_table)
-users_table = boto3.resource("dynamodb").Table(config.users_table)
-ip_utc_offset = boto3.resource("dynamodb").Table(config.ip_utc_offset_table)
+ddb = boto3.resource("dynamodb")
+scores_table = ddb.Table(config.scores_table)
+wordles_table = ddb.Table(config.wordles_table)
+users_table = ddb.Table(config.users_table)
+ip_utc_offset_table = ddb.Table(config.ip_utc_offset_table)
 
 responses: dict = {
     1: "Hole in one!",
@@ -41,22 +42,12 @@ responses: dict = {
     6: "Double bogey",
 }
 
-default_opt_in_out_msgs = [
-    "stop",
-    "stopall",
-    "unsubscribe",
-    "cancel",
-    "end",
-    "quit",
-    "start",
-    "yes",
-    "unstop",
-]
-reminder_msg: str = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
-unsubscribed_msg: str = (
+err_msg_to_user = "Something went wrong! Please try again."
+reminder_msg = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
+unsubscribed_msg = (
     "You will no longer receive daily Wordle reminders.\n\nText REMIND to opt back in."
 )
-subscribed_msg: str = (
+subscribed_msg = (
     "Successfully subscribed to Wordle reminders!\n\nText ENOUGH to opt out."
 )
 
@@ -70,8 +61,8 @@ def sms_response(msg: str) -> Response:
 
 
 def get_todays_wordle_number(ip: str = None, utc_offset: int = None) -> int:
-    offset: int = utc_offset if utc_offset else int(get_user_utc_offset(ip=ip))
-    hours_since_epoch: int = time.time() / 60 / 60 + offset
+    offset = utc_offset if utc_offset else int(get_user_utc_offset(ip=ip))
+    hours_since_epoch = time.time() / 60 / 60 + offset
 
     return (
         int(hours_since_epoch / 24)
@@ -82,7 +73,7 @@ def get_todays_wordle_number(ip: str = None, utc_offset: int = None) -> int:
 
 def get_user_utc_offset(ip: str) -> Decimal:
     try:
-        return ip_utc_offset.query(
+        return ip_utc_offset_table.query(
             ProjectionExpression="UtcOffest",
             KeyConditionExpression="#IpAddress = :val",
             ExpressionAttributeNames={"#IpAddress": "IpAddress"},
@@ -96,15 +87,13 @@ def get_user_utc_offset(ip: str) -> Decimal:
         response: requests.Response = requests.get(f"{config.tz_api}{ip}")
         response.raise_for_status()
 
-        raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
+        raw_offset = int(response.json()["utc_offset"].replace(":", ""))
         sign = -1 if raw_offset < 0 else 1
         raw_offset = abs(raw_offset)
 
-        utc_offset: Decimal = Decimal(
-            (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
-        )
+        utc_offset = Decimal((int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign)
 
-        ip_utc_offset.put_item(
+        ip_utc_offset_table.put_item(
             Item={
                 "IpAddress": ip,
                 "UtcOffest": utc_offset,
@@ -120,8 +109,8 @@ def get_todays_wordle_answer() -> None:
         features="html.parser",
     ).select("section.content")[0]
 
-    cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
-    answer: str = cell[2].get_text().strip()
+    cell = content.find_all("table")[0].find_all("tr")[0].find_all("td")
+    answer = cell[2].get_text().strip()
 
     try:
         definitions: list = []
@@ -177,7 +166,7 @@ def send_reminders() -> None:
                 body=reminder_msg,
                 to=f"+1{u['PhoneNumber']}",
             )
-            logger.debug(f"Sent {message.sid}")
+            logger.info(f"Sent {message.sid}")
 
 
 def unsubscribe_user(user: int) -> Response:
@@ -191,7 +180,7 @@ def unsubscribe_user(user: int) -> Response:
         return sms_response(msg=unsubscribed_msg)
     except Exception as e:
         logger.error(f"Error unsubscribing user {user}: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 def subscribe_user(user: int) -> Response:
@@ -203,7 +192,7 @@ def subscribe_user(user: int) -> Response:
         return sms_response(msg=subscribed_msg)
     except Exception as e:
         logger.error(f"Error subscribing user {user}: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 @app.post("/post")
@@ -212,27 +201,25 @@ def post_score() -> Response:
     try:
         decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
 
-        phone_number: int = int(decoded_body["From"][2:])
-        first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
+        phone_number = int(decoded_body["From"][2:])
+        first_line = list(filter(None, decoded_body["Body"].split("\n")))[0]
 
         chunks: list = first_line.split(" ")
 
         # Handle some other message types
-        if chunks[0].lower() in default_opt_in_out_msgs:
-            return None
         if chunks[0].lower() == "enough":
             return unsubscribe_user(user=phone_number)
         if chunks[0].lower() == "remind":
             return subscribe_user(user=phone_number)
 
-        puzzle_number: int = int(chunks[1])
+        puzzle_number = int(chunks[1])
 
         try:
-            guesses: str = int(chunks[2].split("/")[0])
-            victory: int = True
+            guesses = int(chunks[2].split("/")[0])
+            victory = True
         except ValueError:
-            guesses: int = 6
-            victory: int = False
+            guesses = 6
+            victory = False
 
         assert guesses >= 1 and guesses <= 6
     except Exception as e:
@@ -278,7 +265,7 @@ def post_score() -> Response:
 
     except Exception as e:
         logger.error(f"Error putting item: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 @app.get("/leaderboard")
@@ -325,7 +312,7 @@ def user(user: str) -> dict:
 
     # Shouldn't be needed once everyone texts in again
     try:
-        caller_name: str = users_table.query(
+        caller_name = users_table.query(
             ProjectionExpression="CallerName",
             KeyConditionExpression="#PhoneNumber = :val",
             ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
@@ -372,7 +359,7 @@ def today() -> dict:
 
 @app.get("/wordles")
 def users() -> list:
-    todays_wordle: int = get_todays_wordle_number(
+    todays_wordle = get_todays_wordle_number(
         ip=app.current_event.request_context.http.source_ip
     )
     return sorted(
@@ -393,7 +380,7 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
-    answer: str = None
+    answer = None
     definitions: list = []
     try:
         if int(wordle) < get_todays_wordle_number(
@@ -418,7 +405,7 @@ def wordle(wordle: str) -> dict:
     participants: list = []
     for i in items:
         try:
-            caller_name: str = users_table.query(
+            caller_name = users_table.query(
                 ProjectionExpression="CallerName",
                 KeyConditionExpression="#PhoneNumber = :val",
                 ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
@@ -445,18 +432,10 @@ def wordle(wordle: str) -> dict:
     }
 
 
-@app.get("/health")
-def health() -> str:
-    return {"status": "alive"}
-
-
 def api_handler(event: dict, context: LambdaContext) -> str:
-    logger.debug(event)
-    if "warmer" in event:
-        return True
-    elif "updater" in event:
-        return get_todays_wordle_answer()
+    if "updater" in event:
+        get_todays_wordle_answer()
     elif "reminder" in event:
-        return send_reminders()
+        send_reminders()
     else:
         return app.resolve(event, context)

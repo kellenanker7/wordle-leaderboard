@@ -2,7 +2,7 @@
   "name": "wordle-leaderboard",
   "version": "1.0.0",
   "devDependencies": {
-    "serverless-python-requirements": "^5.1.1",
+    "serverless-python-requirements": "^6.0.0",
     "serverless-domain-manager": "^5.1.0",
     "serverless-certificate-creator": "^1.6.0",
     "serverless-plugin-log-retention": "^2.0.0",
@@ -10,6 +10,6 @@
     "serverless-plugin-git-variables": "^5.2.0"
   },
   "dependencies": {
-  	"sls": "^0.1.0"
+  	"serverless": "^3.0.0"
   }
 }

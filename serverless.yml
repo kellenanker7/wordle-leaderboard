@@ -78,12 +78,6 @@ functions:
     timeout: 29
     events:
       - schedule:
-          name: wordle-leaderboard-warmer
-          description: Keep wordle-leaderboard warm
-          rate: rate(5 minutes)
-          input:
-            warmer: "yes"
-      - schedule:
           name: wordle-answer-updater
           description: Get daily Wordle export
           rate: cron(15 0 * * ? *)
@@ -98,9 +92,6 @@ functions:
       - httpApi:
           path: '/post'
           method: POST
-      - httpApi:
-          path: '/health'
-          method: GET
       - httpApi:
           path: '/leaderboard'
           method: GET
@@ -128,7 +119,6 @@ custom:
 
   customDomain:
     domainName: ${self:custom.fqdn}
-    basePath: ''
     stage: live
     createRoute53Record: true
     certificateName: ${self:custom.fqdn}
@@ -161,6 +151,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: wordle-leaderboard
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: PhoneNumber
             AttributeType: N
@@ -177,6 +168,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: wordles
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: Id
             AttributeType: N
@@ -189,6 +181,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: users
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: PhoneNumber
             AttributeType: N
@@ -201,6 +194,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: ip-utc-offset-lookup
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: IpAddress
             AttributeType: S

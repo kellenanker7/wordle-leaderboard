@@ -32,7 +32,7 @@ wordles_table = boto3.resource("dynamodb").Table(config.wordles_table)
 users_table = boto3.resource("dynamodb").Table(config.users_table)
 ip_utc_offset = boto3.resource("dynamodb").Table(config.ip_utc_offset_table)
 
-responses: dict = {
+responses = {
     1: "Hole in one!",
     2: "Albatross!",
     3: "Birdie!",
@@ -52,11 +52,11 @@ default_opt_in_out_msgs = [
     "yes",
     "unstop",
 ]
-reminder_msg: str = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
-unsubscribed_msg: str = (
+reminder_msg = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
+unsubscribed_msg = (
     "You will no longer receive daily Wordle reminders.\n\nText REMIND to opt back in."
 )
-subscribed_msg: str = (
+subscribed_msg = (
     "Successfully subscribed to Wordle reminders!\n\nText ENOUGH to opt out."
 )
 
@@ -70,8 +70,8 @@ def sms_response(msg: str) -> Response:
 
 
 def get_todays_wordle_number(ip: str = None, utc_offset: int = None) -> int:
-    offset: int = utc_offset if utc_offset else int(get_user_utc_offset(ip=ip))
-    hours_since_epoch: int = time.time() / 60 / 60 + offset
+    offset = utc_offset if utc_offset else int(get_user_utc_offset(ip=ip))
+    hours_since_epoch = time.time() / 60 / 60 + offset
 
     return (
         int(hours_since_epoch / 24)
@@ -91,12 +91,12 @@ def get_user_utc_offset(ip: str) -> Decimal:
         )["Items"][0]["UtcOffest"]
 
     except (KeyError, IndexError):
-        logger.info(f"Cache miss: {ip}")
+        logger.debug(f"Cache miss: {ip}")
 
-        response: requests.Response = requests.get(f"{config.tz_api}{ip}")
+        response = requests.get(f"{config.tz_api}{ip}")
         response.raise_for_status()
 
-        raw_offset: int = int(response.json()["utc_offset"].replace(":", ""))
+        raw_offset = int(response.json()["utc_offset"].replace(":", ""))
         sign = -1 if raw_offset < 0 else 1
         raw_offset = abs(raw_offset)
 
@@ -120,12 +120,17 @@ def get_todays_wordle_answer() -> None:
         features="html.parser",
     ).select("section.content")[0]
 
-    cell: str = content.find_all("table")[0].find_all("tr")[0].find_all("td")
-    answer: str = cell[2].get_text().strip()
+    elements = content.find_all("table")[0].find("tbody").find("tr").find_all("td")
+    a_id = elements[1].get_text().strip()
 
     try:
-        definitions: list = []
-        response: requests.Response = requests.get(f"{config.dictionary_api}{answer}")
+        answer = elements[2].find("span").get_text().strip()
+    except:
+        answer = elements[2].get_text().strip()
+
+    try:
+        definitions = []
+        response = requests.get(f"{config.dictionary_api}{answer}")
         response.raise_for_status()
 
         for i in response.json():
@@ -138,11 +143,11 @@ def get_todays_wordle_answer() -> None:
                 )
     except Exception as e:
         logger.warn(f"Definition(s) not found for {answer}")
-        definitions: list = [{"part_of_speech": "", "definitions": []}]
+        definitions = [{"part_of_speech": "", "definitions": []}]
 
     wordles_table.put_item(
         Item={
-            "Id": int(cell[1].get_text().strip()),
+            "Id": int(a_id),
             "Answer": answer,
             "Definitions": definitions,
         },
@@ -171,7 +176,7 @@ def send_reminders() -> None:
             )
             == 0
         ):
-            logger.info(f"Sending reminder to {u['PhoneNumber']}")
+            logger.debug(f"Sending reminder to {u['PhoneNumber']}")
             message = client.messages.create(
                 from_=config.twilio_messaging_service_sid,
                 body=reminder_msg,
@@ -210,12 +215,12 @@ def subscribe_user(user: int) -> Response:
 @authorize(app)
 def post_score() -> Response:
     try:
-        decoded_body: dict = dict(parse_qsl(app.current_event.decoded_body))
+        decoded_body = dict(parse_qsl(app.current_event.decoded_body))
 
-        phone_number: int = int(decoded_body["From"][2:])
-        first_line: str = list(filter(None, decoded_body["Body"].split("\n")))[0]
+        phone_number = int(decoded_body["From"][2:])
+        first_line = list(filter(None, decoded_body["Body"].split("\n")))[0]
 
-        chunks: list = first_line.split(" ")
+        chunks = first_line.split(" ")
 
         # Handle some other message types
         if chunks[0].lower() in default_opt_in_out_msgs:
@@ -225,19 +230,21 @@ def post_score() -> Response:
         if chunks[0].lower() == "remind":
             return subscribe_user(user=phone_number)
 
-        puzzle_number: int = int(chunks[1])
+        puzzle_number = int(chunks[1])
 
         try:
-            guesses: str = int(chunks[2].split("/")[0])
-            victory: int = True
+            guesses = int(chunks[2].split("/")[0])
+            victory = True
         except ValueError:
-            guesses: int = 6
-            victory: int = False
+            guesses = 6
+            victory = False
 
         assert guesses >= 1 and guesses <= 6
     except Exception as e:
         logger.error(e)
-        return sms_response(msg="Invalid Wordle payload")
+        return sms_response(
+            msg="Sorry, didn't understand that. Make sure to paste your score directly from the Wordle site/app!"
+        )
 
     try:
         scores_table.put_item(
@@ -259,7 +266,7 @@ def post_score() -> Response:
                 Limit=1,
             )["Items"][0]["CallerName"]
         except (KeyError, IndexError):
-            logger.info(f"Cache miss: {phone_number}")
+            logger.debug(f"Cache miss: {phone_number}")
             users_table.put_item(
                 Item={
                     "PhoneNumber": phone_number,
@@ -299,24 +306,19 @@ def leaderboard() -> list:
     )
 
 
-@app.get("/users")
-def users() -> list:
-    return sorted(users_table.scan()["Items"], key=lambda x: x["CallerName"])
-
-
 @app.get("/user/<user>")
 def user(user: str) -> dict:
-    items: list = scores_table.scan(
+    items = scores_table.scan(
         FilterExpression="#PhoneNumber = :who",
         ExpressionAttributeValues={":who": int(user)},
         ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
         ProjectionExpression="Guesses,Victory,PuzzleNumber",
     )["Items"]
 
-    wins: list = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]
+    wins = [int(i["PuzzleNumber"]) for i in items if i["Victory"]]
 
     # https://stackoverflow.com/questions/2361945/detecting-consecutive-integers-in-a-list
-    streaks: list = []
+    streaks = []
     for _, g in groupby(
         enumerate(wins),
         lambda ix: ix[0] - ix[1],
@@ -325,7 +327,7 @@ def user(user: str) -> dict:
 
     # Shouldn't be needed once everyone texts in again
     try:
-        caller_name: str = users_table.query(
+        caller_name = users_table.query(
             ProjectionExpression="CallerName",
             KeyConditionExpression="#PhoneNumber = :val",
             ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
@@ -371,8 +373,8 @@ def today() -> dict:
 
 
 @app.get("/wordles")
-def users() -> list:
-    todays_wordle: int = get_todays_wordle_number(
+def wordles() -> list:
+    todays_wordle = get_todays_wordle_number(
         ip=app.current_event.request_context.http.source_ip
     )
     return sorted(
@@ -384,7 +386,7 @@ def users() -> list:
 
 @app.get("/wordle/<wordle>")
 def wordle(wordle: str) -> dict:
-    items: list = scores_table.scan(
+    items = scores_table.scan(
         FilterExpression="#PuzzleNumber = :puzzle",
         ExpressionAttributeValues={
             ":puzzle": int(wordle),
@@ -393,13 +395,13 @@ def wordle(wordle: str) -> dict:
         ProjectionExpression="PhoneNumber,Guesses,Victory",
     )["Items"]
 
-    answer: str = None
-    definitions: list = []
+    answer = None
+    definitions = []
     try:
         if int(wordle) < get_todays_wordle_number(
             ip=app.current_event.request_context.http.source_ip
         ):
-            item: dict = wordles_table.query(
+            item = wordles_table.query(
                 KeyConditionExpression="#Id = :val",
                 ExpressionAttributeNames={"#Id": "Id"},
                 ExpressionAttributeValues={":val": int(wordle)},
@@ -415,10 +417,10 @@ def wordle(wordle: str) -> dict:
     except (KeyError, IndexError):
         pass
 
-    participants: list = []
+    participants = []
     for i in items:
         try:
-            caller_name: str = users_table.query(
+            caller_name = users_table.query(
                 ProjectionExpression="CallerName",
                 KeyConditionExpression="#PhoneNumber = :val",
                 ExpressionAttributeNames={"#PhoneNumber": "PhoneNumber"},
@@ -452,11 +454,9 @@ def health() -> str:
 
 def api_handler(event: dict, context: LambdaContext) -> str:
     logger.debug(event)
-    if "warmer" in event:
-        return True
-    elif "updater" in event:
+    if event.get("action", None) == "update":
         return get_todays_wordle_answer()
-    elif "reminder" in event:
+    if event.get("action", None) == "remind":
         return send_reminders()
-    else:
-        return app.resolve(event, context)
+
+    return app.resolve(event, context)

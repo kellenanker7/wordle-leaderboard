@@ -48,7 +48,7 @@ provider:
             - !GetAtt IpUtcOffsetLookupTable.Arn
 
   environment:
-    LOG_LEVEL: DEBUG
+    LOG_LEVEL: INFO
     SCORES_TABLE: !Ref ScoresTable
     WORDLES_TABLE: !Ref WordlesTable
     USERS_TABLE: !Ref UsersTable
@@ -78,23 +78,17 @@ functions:
     timeout: 29
     events:
       - schedule:
-          name: wordle-leaderboard-warmer
-          description: Keep wordle-leaderboard warm
-          rate: rate(5 minutes)
-          input:
-            warmer: "yes"
-      - schedule:
           name: wordle-answer-updater
           description: Get daily Wordle export
           rate: cron(15 0 * * ? *)
           input:
-            updater: "yes"
+            action: "update"
       - schedule:
           name: wordle-reminder
           description: Remind users to do the Wordle
           rate: cron(0 23 * * ? *)
           input:
-            reminder: "yes"
+            action: "remind"
       - httpApi:
           path: '/post'
           method: POST
@@ -112,9 +106,6 @@ functions:
           method: GET
       - httpApi:
           path: '/wordle/{wordle}'
-          method: GET
-      - httpApi:
-          path: '/users'
           method: GET
       - httpApi:
           path: '/user/{user}'

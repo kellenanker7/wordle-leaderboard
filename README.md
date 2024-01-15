@@ -1,12 +1,9 @@
 # World Leaderboard
-
 ```bash
-npm install
-sls create-cert
-sls deploy
+make deploy
 ```
 
-## Metrics
+## Health check
 ```bash
-curl 'https://worlde.kellenanker.com/health'
+curl https://api.wordle.kellenanker.com/health
 ```

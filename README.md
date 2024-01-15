@@ -1,4 +1,4 @@
-# World Leaderboard
+# Wordle Leaderboard
 ```bash
 make deploy
 ```

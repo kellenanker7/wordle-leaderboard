@@ -90,11 +90,11 @@ functions:
           input:
             action: "remind"
       - httpApi:
-          path: '/post'
-          method: POST
-      - httpApi:
           path: '/health'
           method: GET
+      - httpApi:
+          path: '/post'
+          method: POST
       - httpApi:
           path: '/leaderboard'
           method: GET
@@ -119,7 +119,6 @@ custom:
 
   customDomain:
     domainName: ${self:custom.fqdn}
-    basePath: ''
     stage: live
     createRoute53Record: true
     certificateName: ${self:custom.fqdn}
@@ -152,6 +151,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: wordle-leaderboard
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: PhoneNumber
             AttributeType: N
@@ -168,6 +168,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: wordles
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: Id
             AttributeType: N
@@ -180,6 +181,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: users
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: PhoneNumber
             AttributeType: N
@@ -192,6 +194,7 @@ resources:
       Type: AWS::DynamoDB::Table
       Properties:
         TableName: ip-utc-offset-lookup
+        DeletionProtectionEnabled: true
         AttributeDefinitions:
           - AttributeName: IpAddress
             AttributeType: S

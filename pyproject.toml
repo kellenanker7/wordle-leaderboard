@@ -6,9 +6,10 @@ authors = ["KELLEN ANKER <kellenanker7@gmail.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
-aws-lambda-powertools = "^1.25.1"
-twilio = "^7.16.0"
+aws-lambda-powertools = "^2.0.0"
+twilio = "^8.0.0"
 bs4 = "^0.0.1"
+urllib3 = "<2"
 
 [tool.poetry.dev-dependencies]
 

@@ -27,10 +27,11 @@ app = APIGatewayHttpResolver()
 
 client = Client(config.twilio_account_sid, config.twilio_auth_token)
 
-scores_table = boto3.resource("dynamodb").Table(config.scores_table)
-wordles_table = boto3.resource("dynamodb").Table(config.wordles_table)
-users_table = boto3.resource("dynamodb").Table(config.users_table)
-ip_utc_offset = boto3.resource("dynamodb").Table(config.ip_utc_offset_table)
+ddb = boto3.resource("dynamodb")
+scores_table = ddb.Table(config.scores_table)
+wordles_table = ddb.Table(config.wordles_table)
+users_table = ddb.Table(config.users_table)
+ip_utc_offset_table = ddb.Table(config.ip_utc_offset_table)
 
 responses = {
     1: "Hole in one!",
@@ -52,6 +53,7 @@ default_opt_in_out_msgs = [
     "yes",
     "unstop",
 ]
+err_msg_to_user = "Something went wrong! Please try again."
 reminder_msg = "Don't forget to do today's Wordle!\n\nhttps://nytimes.com/games/wordle\n\nText ENOUGH to opt out of these reminders."
 unsubscribed_msg = (
     "You will no longer receive daily Wordle reminders.\n\nText REMIND to opt back in."
@@ -82,7 +84,7 @@ def get_todays_wordle_number(ip: str = None, utc_offset: int = None) -> int:
 
 def get_user_utc_offset(ip: str) -> Decimal:
     try:
-        return ip_utc_offset.query(
+        return ip_utc_offset_table.query(
             ProjectionExpression="UtcOffest",
             KeyConditionExpression="#IpAddress = :val",
             ExpressionAttributeNames={"#IpAddress": "IpAddress"},
@@ -100,11 +102,9 @@ def get_user_utc_offset(ip: str) -> Decimal:
         sign = -1 if raw_offset < 0 else 1
         raw_offset = abs(raw_offset)
 
-        utc_offset: Decimal = Decimal(
-            (int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign
-        )
+        utc_offset = Decimal((int(raw_offset / 100) + (raw_offset % 100) / 60.0) * sign)
 
-        ip_utc_offset.put_item(
+        ip_utc_offset_table.put_item(
             Item={
                 "IpAddress": ip,
                 "UtcOffest": utc_offset,
@@ -182,7 +182,7 @@ def send_reminders() -> None:
                 body=reminder_msg,
                 to=f"+1{u['PhoneNumber']}",
             )
-            logger.debug(f"Sent {message.sid}")
+            logger.info(f"Sent {message.sid}")
 
 
 def unsubscribe_user(user: int) -> Response:
@@ -196,7 +196,7 @@ def unsubscribe_user(user: int) -> Response:
         return sms_response(msg=unsubscribed_msg)
     except Exception as e:
         logger.error(f"Error unsubscribing user {user}: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 def subscribe_user(user: int) -> Response:
@@ -208,7 +208,7 @@ def subscribe_user(user: int) -> Response:
         return sms_response(msg=subscribed_msg)
     except Exception as e:
         logger.error(f"Error subscribing user {user}: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 @app.post("/post")
@@ -285,7 +285,7 @@ def post_score() -> Response:
 
     except Exception as e:
         logger.error(f"Error putting item: {e}")
-        return sms_response(msg="Oh no! Something went wrong! Please try again.")
+        return sms_response(msg=err_msg_to_user)
 
 
 @app.get("/leaderboard")

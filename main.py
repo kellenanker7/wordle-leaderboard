@@ -230,7 +230,7 @@ def post_score() -> Response:
         if chunks[0].lower() == "remind":
             return subscribe_user(user=phone_number)
 
-        puzzle_number = int(chunks[1])
+        puzzle_number = int(chunks[1].replace(",", ""))
 
         try:
             guesses = int(chunks[2].split("/")[0])
@@ -342,15 +342,17 @@ def user(user: str) -> dict:
         "PhoneNumber": int(user),
         "Puzzles": sorted(items, key=lambda x: x["PuzzleNumber"], reverse=True),
         "Wins": sorted(wins, key=int, reverse=True),
-        "WinPercentage": 0
-        if len(items) < 1
-        else round((len(wins) / len(items)) * 100, 2),
-        "Average": 0
-        if len(items) < 1
-        else round(sum([int(i["Guesses"]) for i in items]) / len(items), 2),
-        "LongestStreak": 0
-        if len(streaks) < 1
-        else sorted([len(s) for s in streaks])[-1],
+        "WinPercentage": (
+            0 if len(items) < 1 else round((len(wins) / len(items)) * 100, 2)
+        ),
+        "Average": (
+            0
+            if len(items) < 1
+            else round(sum([int(i["Guesses"]) for i in items]) / len(items), 2)
+        ),
+        "LongestStreak": (
+            0 if len(streaks) < 1 else sorted([len(s) for s in streaks])[-1]
+        ),
         "CurrentStreak": (
             0
             if len(items) < 1
